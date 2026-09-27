@@ -87,6 +87,7 @@ adb shell am start -a android.intent.action.VIEW -d "https://example.com" ; slee
 adb shell input keyevent KEYCODE_HOME; sleep 2
 go learning; sleep 2
 tap_text "Mark: Paid ✓"; sleep 2
+tap_text "Preview the “Did you just pay…?” popup"; shot 11b-popup-preview 2
 shot 12-learning-log 3
 adb shell cmd statusbar expand-notifications; shot 13-learning-notification 3
 adb shell cmd statusbar collapse

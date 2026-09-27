@@ -38,7 +38,7 @@ class PayPopup(private val service: AccessibilityService, private val scope: Cor
 
     private fun dp(v: Int) = TypedValue.applyDimension(TypedValue.COMPLEX_UNIT_DIP, v.toFloat(), service.resources.displayMetrics).toInt()
 
-    fun show(txn: Txn, payAppLabel: String) {
+    fun show(txn: Txn, payAppLabel: String, preview: Boolean = false) {
         dismiss()
         val ctx: Context = service
         val sans = runCatching { ResourcesCompat.getFont(ctx, R.font.onest) }.getOrNull() ?: Typeface.DEFAULT
@@ -69,7 +69,7 @@ class PayPopup(private val service: AccessibilityService, private val scope: Cor
             elevation = dp(12).toFloat()
         }
         val title = text(16f, 0xFF151515.toInt(), bold = true).apply { text = "Did you just pay ${txn.merchant}?" }
-        val sub = text(12f, 0xFF5E5C57.toInt()).apply { text = "via $payAppLabel · ${timeHm(txn.occurredAt)}" }
+        val sub = text(12f, 0xFF5E5C57.toInt()).apply { text = (if (preview) "Preview · " else "") + "via $payAppLabel · ${timeHm(txn.occurredAt)}" }
         val amount = text(28f, 0xFF151515.toInt(), bold = true, face = serif)
         val amountHint = text(12f, 0xFF1F5C40.toInt())
         fun renderAmount(t: Txn) {
@@ -88,16 +88,18 @@ class PayPopup(private val service: AccessibilityService, private val scope: Cor
         val repo = Repo.get(ctx)
         val buttons = LinearLayout(ctx).apply { orientation = LinearLayout.HORIZONTAL }
         val lp = { w: Float -> LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, w).apply { marginEnd = dp(8) } }
-        buttons.addView(pill("Yes, review", true) {
+        buttons.addView(pill("Yes, review", true) pill@{
             dismiss()
+            if (preview) return@pill
             service.startActivity(
                 Intent(ctx, MainActivity::class.java)
                     .addFlags(Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP)
                     .putExtra(MainActivity.EXTRA_ROUTE, "review").putExtra(MainActivity.EXTRA_ID, txn.id),
             )
         }, lp(1.3f))
-        buttons.addView(pill("No", false) {
+        buttons.addView(pill("No", false) pill@{
             dismiss()
+            if (preview) return@pill
             repo.scope.launch { repo.db.txns().get(txn.id)?.let { repo.ignore(it) } }
         }, lp(0.8f))
         buttons.addView(pill("Later", false) { dismiss() }, LinearLayout.LayoutParams(0, LinearLayout.LayoutParams.WRAP_CONTENT, 0.9f))
@@ -129,6 +131,7 @@ class PayPopup(private val service: AccessibilityService, private val scope: Cor
         }
 
         // Keep the amount live until the SMS lands; auto-hide after a while (the entry stays in Review).
+        if (preview) { job = scope.launch { delay(15_000); dismiss() }; return }
         job = scope.launch {
             var t = txn
             repeat(POLLS) {

@@ -217,8 +217,23 @@ class PayWatchService : AccessibilityService() {
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     private lateinit var popup: PayPopup
 
+    companion object {
+        @Volatile var instance: PayWatchService? = null
+    }
+
+    /** Shows the popup with sample data so the owner can see what it looks like. */
+    fun preview() {
+        if (!::popup.isInitialized) return
+        popup.show(
+            com.viser.organiser.data.Txn(kind = "expense", amount = 34900L, merchant = "Swiggy", source = "popup",
+                bank = "HDFC", accountLast4 = "1234", status = "pending"),
+            "slice", preview = true,
+        )
+    }
+
     override fun onServiceConnected() {
         super.onServiceConnected()
+        instance = this
         popup = PayPopup(this, scope)
         if (Learning.isOn(this)) Learning.append(this, "SERVICE", "connected", "")
     }
@@ -248,6 +263,7 @@ class PayWatchService : AccessibilityService() {
     override fun onInterrupt() {}
 
     override fun onDestroy() {
+        instance = null
         if (::popup.isInitialized) popup.dismiss()
         scope.cancel()
         super.onDestroy()

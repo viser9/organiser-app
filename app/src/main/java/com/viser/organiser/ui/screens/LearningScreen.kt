@@ -128,6 +128,14 @@ fun LearningScreen(nav: Nav) {
                 }
             }
 
+            if (svc) {
+                OutlineButton("Preview the “Did you just pay…?” popup", Modifier.fillMaxWidth(), height = 48.dp) {
+                    val s = com.viser.organiser.watch.PayWatchService.instance
+                    if (s == null) Toast.makeText(ctx, "Service is starting — try again in a second", Toast.LENGTH_SHORT).show()
+                    else s.preview()
+                }
+            }
+
             Step(2, "Start learning", on, if (on) "On until ${timeHm(until)}" else "Needs step 1") {}
             if (on) {
                 OutlineButton("Stop learning", Modifier.fillMaxWidth(), height = 48.dp) { Learning.stop(ctx); tick++ }
