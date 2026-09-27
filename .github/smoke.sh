@@ -68,7 +68,12 @@ adb shell input keyevent KEYCODE_BACK; adb shell input keyevent KEYCODE_BACK; sl
 go capture ""; shot 05-capture-chooser
 adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'Toit Brewpub https://www.google.com/maps/place/Toit/@12.9790,77.6408,17z'" -n $PKG/.MainActivity
 shot 06-share-place
-go capture expense; shot 07-capture-expense
+go capture expense; sleep 2; adb shell input text "900"; adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell input swipe 540 1700 540 900 300; sleep 1
+tap_text "Yes"; sleep 1
+tap_text "Add a person's name"; sleep 1; adb shell input text "Riya"; adb shell input keyevent KEYCODE_ENTER; sleep 1
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell input swipe 540 1700 540 900 300; shot 07-capture-expense 2
 go saved; shot 08-saved
 tap_text "Manage sections"; shot 08b-sections 2
 adb shell input keyevent KEYCODE_BACK; sleep 1

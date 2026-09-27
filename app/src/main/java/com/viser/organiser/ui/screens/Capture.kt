@@ -64,6 +64,7 @@ import com.viser.organiser.data.TxnKind
 import com.viser.organiser.data.TxnStatus
 import com.viser.organiser.reminders.TimeParser
 import com.viser.organiser.ui.Chip
+import com.viser.organiser.ui.state
 import com.viser.organiser.ui.CircleIconButton
 import com.viser.organiser.ui.DarkField
 import com.viser.organiser.ui.DashedChip
@@ -424,6 +425,10 @@ private fun ColumnScope.ExpenseForm(nav: Nav) {
     var cat by rememberSaveable { mutableStateOf("Dining out") }
     var mode by rememberSaveable { mutableStateOf("UPI") }
     var date by rememberSaveable { mutableStateOf(System.currentTimeMillis()) }
+    // Split: same editor as the confirm sheet (names, equal split or your own share)
+    var split by remember { mutableStateOf(com.viser.organiser.ui.TxnDraft(TxnKind.EXPENSE, "", "", false, emptyList(), "")) }
+    val splits by remember { r.db.txns().recentSplits() }.state(emptyList())
+    val knownPeople = remember(splits) { splits.flatMap { it.split('|') }.filter { it.isNotBlank() }.distinct() }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
@@ -473,6 +478,18 @@ private fun ColumnScope.ExpenseForm(nav: Nav) {
                     }
                 }
             }
+            Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
+                Row(Modifier.fillMaxWidth(), verticalAlignment = Alignment.CenterVertically) {
+                    Kicker("Split this?", modifier = Modifier.weight(1f))
+                    Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
+                        Chip("No", !split.split, height = 32.dp) { split = split.copy(split = false) }
+                        Chip("Yes", split.split, height = 32.dp) { split = split.copy(split = true) }
+                    }
+                }
+                if (split.split) {
+                    com.viser.organiser.ui.SplitPeople(parseRupees(amount) ?: 0L, split.copy(kind = flow), knownPeople) { split = it }
+                }
+            }
             Column {
                 Divider()
                 val isToday = date >= LocalDate.now().startMillis()
@@ -488,15 +505,19 @@ private fun ColumnScope.ExpenseForm(nav: Nav) {
             }
             Spacer(Modifier.height(4.dp))
             val paise = parseRupees(amount)
+            val splitting = split.split && split.people.isNotEmpty() && paise != null && paise > 0
             PrimaryButton(
-                (if (flow == TxnKind.INCOME) "Save income" else "Save expense") + (paise?.let { " · " + rupees(it) } ?: ""),
+                (if (flow == TxnKind.INCOME) "Save income" else "Save expense") +
+                    (paise?.let { " · " + rupees(it) } ?: "") +
+                    (if (splitting) " · yours ${rupees(split.myShare(paise!!))}" else ""),
                 enabled = paise != null && paise > 0,
             ) {
                 val p = paise ?: return@PrimaryButton
-                r.scope.launch {
-                    r.addManualTxn(Txn(kind = flow, amount = p, category = cat, merchant = what.trim(), mode = if (flow == TxnKind.INCOME) "Bank" else mode,
-                        source = "manual", occurredAt = date, status = TxnStatus.CONFIRMED))
-                }
+                val base = Txn(kind = flow, amount = p, category = cat, merchant = what.trim(), mode = if (flow == TxnKind.INCOME) "Bank" else mode,
+                    source = "manual", occurredAt = date, status = TxnStatus.CONFIRMED)
+                // keep kind/category from this form; add split people and the owner's share
+                val t = if (split.split && split.people.isNotEmpty()) split.copy(kind = flow, category = cat, note = "").apply(base) else base
+                r.scope.launch { r.addManualTxn(t) }
                 nav.tab(Tab.MONEY)
             }
         }

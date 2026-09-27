@@ -152,7 +152,7 @@ fun TxnEditor(amount: Long, d: TxnDraft, knownPeople: List<String>, compactCateg
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun SplitPeople(amount: Long, d: TxnDraft, knownPeople: List<String>, onChange: (TxnDraft) -> Unit) {
+fun SplitPeople(amount: Long, d: TxnDraft, knownPeople: List<String>, onChange: (TxnDraft) -> Unit) {
     var name by remember { mutableStateOf("") }
     fun add(n: String) {
         val clean = n.trim().replace("|", "")
