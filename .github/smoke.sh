@@ -63,6 +63,7 @@ adb shell input swipe 540 1600 540 700 300; shot 02b-review-split 2
 adb shell input keyevent KEYCODE_BACK; sleep 1
 go money; shot 03-money
 go capture todo; sleep 3; adb shell input text "Call%sbank%stomorrow%s11am"; shot 04-capture-todo 3
+tap_text "+ Label"; sleep 1; tap_text "Work"; sleep 1; shot 04b-todo-labels 2
 adb shell input keyevent KEYCODE_BACK; adb shell input keyevent KEYCODE_BACK; sleep 1
 go capture ""; shot 05-capture-chooser
 adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'Toit Brewpub https://www.google.com/maps/place/Toit/@12.9790,77.6408,17z'" -n $PKG/.MainActivity

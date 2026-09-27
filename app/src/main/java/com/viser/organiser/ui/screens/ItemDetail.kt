@@ -84,6 +84,7 @@ fun ItemScreen(nav: Nav, id: String) {
     var remindMenu by remember { mutableStateOf(false) }
     var addSec by remember { mutableStateOf(false) }
     var editArea by remember { mutableStateOf(false) }
+    var locDialog by remember { mutableStateOf(false) }
 
     LaunchedEffect(stored) { if (draft == null && stored != null) draft = stored }
     // Autosave edits after a short pause.
@@ -169,6 +170,34 @@ fun ItemScreen(nav: Nav, id: String) {
 
             // type-specific actions
             when (item.type) {
+                ItemType.TODO -> {
+                    val loc = com.viser.organiser.ui.PickedLocation.of(item)
+                    if (loc == null) {
+                        OutlineButton("+ Add location", Modifier.fillMaxWidth(), height = 46.dp) { locDialog = true }
+                    } else {
+                        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                            Kicker("Location")
+                            Row(
+                                Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
+                                    .border(1.dp, C.Line, RoundedCornerShape(14.dp)).clickable { locDialog = true }.padding(14.dp),
+                                verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp),
+                            ) {
+                                Icon(Ic.Place, null, tint = C.Ink, modifier = Modifier.size(20.dp))
+                                Column(Modifier.weight(1f)) {
+                                    Text(loc.name.ifBlank { "Location" }, style = T.sans(15, 600))
+                                    Text(if (loc.url.isNotBlank()) "Google Maps link saved · tap to change" else "Tap to change", style = T.sans(12, 400, color = C.Muted))
+                                }
+                            }
+                            Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                OutlineButton("Open in Maps", Modifier.weight(1f), height = 44.dp) { openMaps(ctx, item, navigate = false) }
+                                Box(
+                                    Modifier.weight(1f).height(44.dp).clip(RoundedCornerShape(22.dp)).background(C.Ink).clickable { openMaps(ctx, item, navigate = true) },
+                                    contentAlignment = Alignment.Center,
+                                ) { Text("Navigate", style = T.sans(14, 600, color = Color.White)) }
+                            }
+                        }
+                    }
+                }
                 ItemType.LINK -> {
                     UrlField(item.url, "Link") { u ->
                         val clean = com.viser.organiser.util.findUrl(u) ?: u.trim()
@@ -194,7 +223,8 @@ fun ItemScreen(nav: Nav, id: String) {
             }
 
             // body / checklist
-            if (item.type != ItemType.TODO || item.body.isNotBlank()) {
+            if (item.type == ItemType.TODO) Kicker("Notes")
+            run {
                 if (item.checklist) {
                     Column(verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         val lines = item.body.lines()
@@ -228,7 +258,7 @@ fun ItemScreen(nav: Nav, id: String) {
                     cursorBrush = SolidColor(C.Ink),
                     modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
                         .border(1.dp, C.Line, RoundedCornerShape(14.dp)).padding(14.dp),
-                    decorationBox = { inner -> Box { if (item.body.isEmpty()) Text("Add details…", style = T.sans(16, 400, color = C.Faint)); inner() } },
+                    decorationBox = { inner -> Box { if (item.body.isEmpty()) Text(if (item.type == ItemType.TODO) "Add notes — details, what to bring, who to ask…" else "Add details…", style = T.sans(16, 400, color = C.Faint)); inner() } },
                 )
             }
 
@@ -299,6 +329,16 @@ fun ItemScreen(nav: Nav, id: String) {
         }
     }
 
+    if (locDialog) {
+        val d = draft
+        com.viser.organiser.ui.LocationDialog(d?.let { com.viser.organiser.ui.PickedLocation.of(it) }, onDismiss = { locDialog = false }) { loc ->
+            draft = d?.copy(
+                area = loc?.name.orEmpty(), url = loc?.url.orEmpty(), lat = loc?.lat, lng = loc?.lng,
+                domain = loc?.url?.let { com.viser.organiser.util.domainOf(it) }.orEmpty(),
+            )
+            locDialog = false
+        }
+    }
     if (addSec) NameDialog("New section", "e.g. Books", onDismiss = { addSec = false }) { n ->
         r.scope.launch { r.addSection(n) }
         draft?.let { d -> draft = d.copy(sections = Item.encodeSections(d.sectionList + n)) }

@@ -290,7 +290,10 @@ private fun ColumnScope.TodoForm(nav: Nav, shared: Shared?) {
     var repeat by rememberSaveable { mutableStateOf(Repeat.NONE) }
     var pick by rememberSaveable { mutableStateOf("auto") }
     var custom by rememberSaveable { mutableStateOf<Long?>(null) }
-    var labelMenu by remember { mutableStateOf(false) }
+    var showLabels by remember { mutableStateOf(false) }
+    var notes by rememberSaveable { mutableStateOf("") }
+    var location by remember { mutableStateOf<com.viser.organiser.ui.PickedLocation?>(null) }
+    var locDialog by remember { mutableStateOf(false) }
     val focus = remember { FocusRequester() }
     LaunchedEffect(Unit) { runCatching { focus.requestFocus() } }
 
@@ -309,7 +312,7 @@ private fun ColumnScope.TodoForm(nav: Nav, shared: Shared?) {
         DarkField(text, { text = it }, "Call bank tomorrow 11am", Modifier.focusRequester(focus),
             style = T.serif(30, 500, color = Color.White).copy(lineHeight = 36.sp), boxed = false, singleLine = false)
         FlowRow(horizontalArrangement = Arrangement.spacedBy(8.dp), verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            labels.forEach { l ->
+            if (!showLabels) labels.forEach { l ->
                 Row(
                     Modifier.height(32.dp).clip(RoundedCornerShape(16.dp)).background(Color.White).clickable { labels = labels - l }.padding(horizontal = 12.dp),
                     verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -318,21 +321,44 @@ private fun ColumnScope.TodoForm(nav: Nav, shared: Shared?) {
                     Text(l, style = T.sans(12, 600))
                 }
             }
-            Box {
-                DashedChip("+ Label", dark = true, height = 32.dp) { labelMenu = true }
-                DropdownMenu(expanded = labelMenu, onDismissRequest = { labelMenu = false }, containerColor = Color.White) {
-                    secs.forEach { s ->
-                        DropdownMenuItem(text = { Text((if (s.name in labels) "✓ " else "") + s.name, style = T.sans(14, 500)) },
-                            onClick = { labels = if (s.name in labels) labels - s.name else labels + s.name; labelMenu = false })
-                    }
+            // Labels open inline (no pop-up), so the keyboard and the sheet don't jump.
+            DashedChip(if (showLabels) "Done" else "+ Label", dark = true, height = 32.dp) { showLabels = !showLabels }
+            location?.let { loc ->
+                Row(
+                    Modifier.height(32.dp).clip(RoundedCornerShape(16.dp)).background(Color.White).clickable { locDialog = true }.padding(horizontal = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                ) {
+                    Icon(Ic.Place, null, tint = C.Ink, modifier = Modifier.size(14.dp))
+                    Text(loc.name.ifBlank { "Location" }, style = T.sans(12, 600), maxLines = 1)
                 }
-            }
+            } ?: DashedChip("+ Location", dark = true, height = 32.dp) { locDialog = true }
             DashedChip("Priority: " + listOf("Low", "Normal", "High")[priority], dark = true, height = 32.dp) { priority = (priority + 1) % 3 }
             DashedChip("Repeat: " + Repeat.label(repeat), dark = true, height = 32.dp) {
                 repeat = Repeat.all[(Repeat.all.indexOf(repeat) + 1) % Repeat.all.size]
             }
         }
+        if (showLabels) {
+            FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                secs.forEach { s ->
+                    val on = s.name in labels
+                    Row(
+                        Modifier.height(30.dp).clip(RoundedCornerShape(15.dp))
+                            .background(if (on) Color.White else C.DarkCard)
+                            .border(1.dp, if (on) Color.White else C.DarkLine, RoundedCornerShape(15.dp))
+                            .clickable { labels = if (on) labels - s.name else labels + s.name }
+                            .padding(horizontal = 11.dp),
+                        verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    ) {
+                        Box(Modifier.size(7.dp).clip(RoundedCornerShape(4.dp)).background(secs.colorOf(s.name)))
+                        Text(s.name, style = T.sans(12, 600, color = if (on) C.Ink else Color(0xFFE8E6E1)))
+                    }
+                }
+            }
+        }
+        DarkField(notes, { notes = it }, "Notes (optional) — details, what to bring, who to ask…",
+            style = T.sans(15, 400, color = Color(0xFFE8E6E1)).copy(lineHeight = 21.sp), boxed = false, singleLine = false)
     }
+    if (locDialog) com.viser.organiser.ui.LocationDialog(location, onDismiss = { locDialog = false }) { location = it; locDialog = false }
     run {
         Sheet {
             Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
@@ -373,8 +399,10 @@ private fun ColumnScope.TodoForm(nav: Nav, shared: Shared?) {
             }
             PrimaryButton(cta, enabled = text.isNotBlank()) {
                 r.scope.launch {
-                    r.saveItem(Item(type = ItemType.TODO, title = text.trim(), sections = Item.encodeSections(labels), priority = priority,
-                        remindAt = at, repeat = if (at != null) repeat else Repeat.NONE))
+                    r.saveItem(Item(type = ItemType.TODO, title = text.trim(), body = notes.trim(), sections = Item.encodeSections(labels), priority = priority,
+                        remindAt = at, repeat = if (at != null) repeat else Repeat.NONE,
+                        area = location?.name.orEmpty(), url = location?.url.orEmpty(), lat = location?.lat, lng = location?.lng,
+                        domain = location?.url?.let { com.viser.organiser.util.domainOf(it) }.orEmpty()))
                 }
                 nav.tab(Tab.TODOS)
             }

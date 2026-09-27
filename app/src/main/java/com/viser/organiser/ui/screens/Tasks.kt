@@ -143,9 +143,9 @@ fun TasksScreen(nav: Nav) {
             } else {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
                     items(rows, key = { it.id }) { t ->
-                        TodoCard(t, late = !t.done && (t.remindAt ?: Long.MAX_VALUE) < nowMs,
+                        Box(Modifier.animateItem()) { TodoCard(t, late = !t.done && (t.remindAt ?: Long.MAX_VALUE) < nowMs,
                             onToggle = { r.scope.launch { r.setDone(t.id, !t.done) } },
-                            onOpen = { nav.push(Screen.ItemDetail(t.id)) })
+                            onOpen = { nav.push(Screen.ItemDetail(t.id)) }) }
                     }
                 }
             }
@@ -193,6 +193,9 @@ private fun TodoCard(t: Item, late: Boolean, onToggle: () -> Unit, onOpen: () ->
                     textDecoration = if (t.done) TextDecoration.LineThrough else null, lineHeight = 20.sp,
                 ),
             )
+            if (t.body.isNotBlank() && !t.done) {
+                Text(t.body.replace('\n', ' '), style = T.sans(13, 400, color = C.Muted), maxLines = 2, overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis)
+            }
             FlowRow(horizontalArrangement = Arrangement.spacedBy(10.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                 val at = t.remindAt
                 val whenText = when {
@@ -209,6 +212,12 @@ private fun TodoCard(t: Item, late: Boolean, onToggle: () -> Unit, onOpen: () ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
                         Icon(Ic.Repeat, null, tint = C.Muted, modifier = Modifier.size(14.dp))
                         Text(Repeat.label(t.repeat), style = T.sans(12, 500, color = C.Muted))
+                    }
+                }
+                if (t.area.isNotBlank()) {
+                    Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                        Icon(Ic.Place, null, tint = C.Muted, modifier = Modifier.size(14.dp))
+                        Text(t.area, style = T.sans(12, 500, color = C.Muted), maxLines = 1)
                     }
                 }
                 if (t.sectionList.isNotEmpty()) Text(t.sectionList.joinToString(" · "), style = T.sans(12, 500, color = C.Muted))

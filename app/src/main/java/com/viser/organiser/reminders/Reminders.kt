@@ -78,7 +78,11 @@ object Notifier {
         val text = when (item.type) {
             ItemType.LINK -> item.domain.ifBlank { "Open your saved link" }
             ItemType.PLACE -> item.area.ifBlank { "A place you saved" }
-            else -> if (item.repeat.isNotEmpty()) "Repeats ${Repeat.label(item.repeat).lowercase()}" else "To-do"
+            else -> listOfNotNull(
+                item.area.takeIf { it.isNotBlank() }?.let { "At $it" },
+                item.body.lineSequence().firstOrNull()?.takeIf { it.isNotBlank() },
+                if (item.repeat.isNotEmpty()) "Repeats ${Repeat.label(item.repeat).lowercase()}" else null,
+            ).joinToString(" · ").ifBlank { "To-do" }
         }
         val b = NotificationCompat.Builder(ctx, CH_REMIND)
             .setSmallIcon(R.drawable.ic_notif)
