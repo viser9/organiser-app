@@ -34,8 +34,8 @@ data class MonthSummary(val income: Long, val spent: Long, val setAside: Long) {
 fun summarize(txns: List<Txn>, contributions: List<Contribution>, ym: YearMonth): MonthSummary {
     val from = ym.startMillis(); val to = ym.endMillis()
     val confirmed = txns.filter { it.status == TxnStatus.CONFIRMED && it.deletedAt == null && it.occurredAt in from until to }
-    val income = confirmed.filter { it.kind == TxnKind.INCOME }.sumOf { it.amount }
-    val spent = confirmed.filter { it.kind == TxnKind.EXPENSE }.sumOf { it.amount }
+    val income = confirmed.filter { it.kind == TxnKind.INCOME }.sumOf { it.effective }
+    val spent = confirmed.filter { it.kind == TxnKind.EXPENSE }.sumOf { it.effective }
     val aside = contributions.filter { it.deletedAt == null && it.at in from until to }.sumOf { it.amount }
     return MonthSummary(income, spent, aside)
 }

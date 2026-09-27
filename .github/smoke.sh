@@ -4,6 +4,13 @@ set -x
 PKG=com.viser.organiser
 APK=app/build/outputs/apk/release/app-release.apk
 mkdir -p shots
+# 1) Upgrade test: install the previous release, open it (creates the v1 database), then upgrade in place
+OLD=$(ls old/*.apk 2>/dev/null | head -1)
+if [ -n "$OLD" ]; then
+  adb install "$OLD" && adb shell am start -n $PKG/.MainActivity && sleep 8
+  adb shell am force-stop $PKG
+  echo "Upgrading from $OLD" > shots/upgrade.txt
+fi
 adb install -r "$APK" || exit 1
 for p in POST_NOTIFICATIONS RECEIVE_SMS READ_SMS; do adb shell pm grant $PKG android.permission.$p; done
 adb logcat -c
@@ -16,6 +23,24 @@ adb shell content insert --uri content://sms/inbox --bind address:s:JD-SLICEIT -
 adb shell content insert --uri content://sms/inbox --bind address:s:VM-SBIINB --bind "body:s:'Your OTP for transaction of Rs.500 at AMAZON is 123456. Do not share.'" --bind date:l:$((NOW+3000)) --bind read:i:1
 
 adb shell content query --uri content://sms/inbox --projection address:body > shots/sms-inbox.txt 2>&1
+
+tap_text() {
+  adb shell uiautomator dump /sdcard/ui.xml >/dev/null 2>&1
+  adb shell cat /sdcard/ui.xml > /tmp/ui.xml
+  B=$(python3 - "$1" <<'PY'
+import re,sys
+x=open('/tmp/ui.xml').read(); t=sys.argv[1]
+for m in re.finditer(r'<node [^>]*>', x):
+    n=m.group(0)
+    if f'text="{t}"' in n or f'content-desc="{t}"' in n:
+        b=re.search(r'bounds="\[(\d+),(\d+)\]\[(\d+),(\d+)\]"', n)
+        if b:
+            x1,y1,x2,y2=map(int,b.groups()); print((x1+x2)//2,(y1+y2)//2); break
+PY
+)
+  echo "tap '$1' at $B" >> shots/taps.txt
+  [ -n "$B" ] && adb shell input tap $B
+}
 
 shot() { sleep "${2:-4}"; adb exec-out screencap -p > "shots/$1.png"; }
 go() { adb shell am start -n $PKG/.MainActivity -f 0x24000000 --es route "$1" ${2:+--es id "$2"}; }
@@ -30,6 +55,11 @@ adb shell cmd statusbar expand-notifications; shot 01b-notifications 3
 adb shell cmd statusbar collapse; sleep 1
 go home; shot 01c-home-after-sms 3
 go review; shot 02-review
+tap_text "Yes"; sleep 1
+tap_text "Add a person's name"; sleep 1; adb shell input text "Aaquib"; adb shell input keyevent KEYCODE_ENTER; sleep 1
+tap_text "Add a person's name"; sleep 1; adb shell input text "Riya"; adb shell input keyevent KEYCODE_ENTER; sleep 1
+adb shell input keyevent KEYCODE_BACK; sleep 1
+adb shell input swipe 540 1600 540 700 300; shot 02b-review-split 2
 adb shell input keyevent KEYCODE_BACK; sleep 1
 go money; shot 03-money
 go capture todo; sleep 3; adb shell input text "Call%sbank%stomorrow%s11am"; shot 04-capture-todo 3

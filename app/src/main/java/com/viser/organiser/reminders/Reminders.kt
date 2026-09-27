@@ -108,11 +108,11 @@ object Notifier {
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val b = NotificationCompat.Builder(ctx, CH_MONEY)
             .setSmallIcon(R.drawable.ic_notif)
-            .setContentTitle("${rupees(t.amount)} $verb ${t.merchant}")
+            .setContentTitle("${rupees(t.amount)} $verb ${t.merchant} — spend or income?")
             .setContentText("${t.category} · ${t.bank} ${if (t.accountLast4.isNotEmpty()) "••" + t.accountLast4 else ""} · ${timeHm(t.occurredAt)}")
             .setAutoCancel(true)
             .setContentIntent(openApp(ctx, "review", t.id, n))
-            .addAction(0, "Confirm · ${t.category}", PendingIntent.getBroadcast(ctx, n + 1, confirm, flags))
+            .addAction(0, "Review", openApp(ctx, "review", t.id, n + 1))
             .addAction(0, "Not a payment", PendingIntent.getBroadcast(ctx, n + 2, ignore, flags))
         try { NotificationManagerCompat.from(ctx).notify(n, b.build()) } catch (_: SecurityException) {}
     }

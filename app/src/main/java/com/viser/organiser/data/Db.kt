@@ -9,6 +9,8 @@ import androidx.room.Query
 import androidx.room.Room
 import androidx.room.RoomDatabase
 import androidx.room.Upsert
+import androidx.room.migration.Migration
+import androidx.sqlite.db.SupportSQLiteDatabase
 import kotlinx.coroutines.flow.Flow
 
 @Dao
@@ -76,6 +78,9 @@ interface TxnDao {
     @Query("SELECT * FROM txns WHERE deletedAt IS NULL AND amount = :amount AND kind = :kind AND occurredAt BETWEEN :from AND :to")
     suspend fun near(amount: Long, kind: String, from: Long, to: Long): List<Txn>
 
+    @Query("SELECT splitWith FROM txns WHERE deletedAt IS NULL AND splitWith != '' ORDER BY occurredAt DESC LIMIT 200")
+    fun recentSplits(): Flow<List<String>>
+
     @Query("SELECT COUNT(*) FROM txns WHERE smsHash = :hash")
     suspend fun hashCount(hash: String): Int
 
@@ -142,7 +147,7 @@ interface RuleDao {
 
 @Database(
     entities = [Item::class, Section::class, Txn::class, Goal::class, Contribution::class, MerchantRule::class],
-    version = 1,
+    version = 2,
     exportSchema = true,
 )
 abstract class AppDb : RoomDatabase() {
@@ -153,10 +158,19 @@ abstract class AppDb : RoomDatabase() {
     abstract fun rules(): RuleDao
 
     companion object {
+        /** v2: split expenses — who it was split with and the owner's share. */
+        val MIGRATION_1_2 = object : Migration(1, 2) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE txns ADD COLUMN splitWith TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE txns ADD COLUMN myShare INTEGER")
+            }
+        }
+
         @Volatile private var instance: AppDb? = null
 
         fun get(context: Context): AppDb = instance ?: synchronized(this) {
             instance ?: Room.databaseBuilder(context.applicationContext, AppDb::class.java, "organiser.db")
+                .addMigrations(MIGRATION_1_2)
                 .build().also { instance = it }
         }
     }

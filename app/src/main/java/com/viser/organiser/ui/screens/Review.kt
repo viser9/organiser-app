@@ -41,7 +41,9 @@ import com.viser.organiser.Nav
 import com.viser.organiser.data.Categories
 import com.viser.organiser.data.Txn
 import com.viser.organiser.data.TxnKind
-import com.viser.organiser.ui.Chip
+import com.viser.organiser.ui.TxnDraft
+import com.viser.organiser.ui.TxnEditor
+import com.viser.organiser.ui.state
 import com.viser.organiser.ui.Ic
 import com.viser.organiser.ui.Kicker
 import com.viser.organiser.ui.OutlineButton
@@ -75,7 +77,9 @@ fun ReviewScreen(nav: Nav, startId: String?) {
     var first by remember { mutableStateOf(startId) }
 
     val current = pending.firstOrNull { it.id == first } ?: pending.firstOrNull()
-    var cat by remember(current?.id) { mutableStateOf(current?.category ?: "Others") }
+    var draft by remember(current?.id) { mutableStateOf(current?.let { TxnDraft.from(it) }) }
+    val splits by remember { r.db.txns().recentSplits() }.state(emptyList())
+    val knownPeople = remember(splits) { splits.flatMap { it.split('|') }.filter { it.isNotBlank() }.distinct() }
     val left = summarize(txns, contribs, YearMonth.now()).remaining
 
     LaunchedEffect(confirmed) {
@@ -111,11 +115,11 @@ fun ReviewScreen(nav: Nav, startId: String?) {
                     }
                     Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                         val (t, c) = done
-                        Text("${rupees(t.amount)} added to $c", style = T.sans(15, 700))
+                        Text("${rupees(t.effective)} added to $c" + if (t.isSplit) " · split" else "", style = T.sans(15, 700))
                         Text("${rupees(left)} left this month" + if (pending.isNotEmpty()) " · ${pending.size} more" else "", style = T.sans(13, 400, color = C.Muted))
                     }
                     OutlineButton("Undo", height = 36.dp) {
-                        scope.launch { r.updateTxn(done.first) }
+                        scope.launch { r.updateTxn(done.first.copy(status = com.viser.organiser.data.TxnStatus.PENDING)) }
                         first = done.first.id; confirmed = null
                     }
                 }
@@ -124,11 +128,11 @@ fun ReviewScreen(nav: Nav, startId: String?) {
                     Text("Bank SMS for SBI, HDFC and slice show up here as they arrive.", style = T.sans(14, 400, color = C.Muted))
                     PrimaryButton("Done", height = 48.dp) { nav.pop() }
                 }
-                else -> PaymentCard(current, cat, onCat = { cat = it },
+                else -> PaymentCard(current, draft ?: TxnDraft.from(current), knownPeople, onDraft = { draft = it },
                     onConfirm = {
-                        val t = current
-                        scope.launch { r.confirm(t, cat) }
-                        confirmed = t to cat
+                        val t = (draft ?: TxnDraft.from(current)).apply(current)
+                        scope.launch { r.confirm(t) }
+                        confirmed = t to t.category
                         first = null
                     },
                     onLater = {
@@ -139,30 +143,27 @@ fun ReviewScreen(nav: Nav, startId: String?) {
                 )
             }
             if (pending.size > 1 && confirmed == null) {
-                Text(
-                    "Confirm all ${pending.size} as suggested",
-                    style = T.sans(13, 600, color = C.Muted),
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.fillMaxWidth().clickable {
-                        val all = pending.toList()
-                        scope.launch { all.forEach { r.confirm(it, it.category) } }
-                    }.padding(vertical = 4.dp),
-                )
+                Text("${pending.size - 1} more after this", style = T.sans(12, 500, color = C.Muted), textAlign = TextAlign.Center, modifier = Modifier.fillMaxWidth())
             }
         }
     }
 }
 
 @Composable
-private fun PaymentCard(t: Txn, cat: String, onCat: (String) -> Unit, onConfirm: () -> Unit, onLater: () -> Unit, onIgnore: () -> Unit) {
-    val income = t.kind == TxnKind.INCOME
+private fun PaymentCard(t: Txn, d: TxnDraft, knownPeople: List<String>, onDraft: (TxnDraft) -> Unit, onConfirm: () -> Unit, onLater: () -> Unit, onIgnore: () -> Unit) {
+    val smsSaysIncome = t.kind == TxnKind.INCOME
+    val income = d.kind == TxnKind.INCOME
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
         Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(10.dp)) {
             Box(Modifier.size(32.dp).clip(RoundedCornerShape(10.dp)).background(C.Ink), contentAlignment = Alignment.Center) {
                 Icon(Ic.Card, null, tint = Color.White, modifier = Modifier.size(16.dp))
             }
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(1.dp)) {
-                Text(if (income) "Money received${if (t.merchant.isNotBlank() && t.merchant != "Money received") " from ${t.merchant}" else ""}?" else "Did you pay ${t.merchant}?", style = T.sans(15, 700))
+                val who = t.merchant.takeIf { it.isNotBlank() && it != "Money received" && !it.endsWith(" payment") }
+                Text(
+                    if (smsSaysIncome) "Money received${who?.let { " from $it" } ?: ""}" else "Payment${who?.let { " to $it" } ?: ""}",
+                    style = T.sans(15, 700),
+                )
                 Text("${t.mode} · ${t.bank} SMS · ${dateShort(t.occurredAt)} ${timeHm(t.occurredAt)}", style = T.sans(12, 400, color = C.Muted))
             }
         }
@@ -181,16 +182,10 @@ private fun PaymentCard(t: Txn, cat: String, onCat: (String) -> Unit, onConfirm:
                 textAlign = TextAlign.End,
             )
         }
+        TxnEditor(t.amount, d, knownPeople, compactCategories = true, onChange = onDraft)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            Kicker("Category")
-            val cats = (if (income) Categories.income else Categories.expense).let { list -> listOf(cat) + list.filter { it != cat } }
-            Row(Modifier.horizontalScroll(rememberScrollState()), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                cats.forEach { c -> Chip(c, c == cat, height = 36.dp) { onCat(c) } }
-            }
-            if (t.merchant.isNotBlank()) Text("Suggested from ${t.merchant}; your choice is remembered", style = T.sans(12, 400, color = C.Muted))
-        }
-        Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            PrimaryButton(if (income) "Confirm income" else "Confirm expense", height = 52.dp, onClick = onConfirm)
+            val share = if (d.split && d.people.isNotEmpty()) " · your ${rupees(d.myShare(t.amount))}" else ""
+            PrimaryButton((if (income) "Confirm income" else "Confirm spend") + share, height = 52.dp, onClick = onConfirm)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlineButton("Later", Modifier.weight(1f), onClick = onLater)
                 OutlineButton("Not a payment", Modifier.weight(1f), onClick = onIgnore)
@@ -198,6 +193,3 @@ private fun PaymentCard(t: Txn, cat: String, onCat: (String) -> Unit, onConfirm:
         }
     }
 }
-
-@Suppress("unused")
-private val unusedRole = Role.Button

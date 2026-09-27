@@ -63,6 +63,8 @@ import com.viser.organiser.ui.Kicker
 import com.viser.organiser.ui.LightField
 import com.viser.organiser.ui.SegTab
 import com.viser.organiser.ui.Tab
+import com.viser.organiser.ui.TxnDraft
+import com.viser.organiser.ui.TxnEditor
 import com.viser.organiser.ui.contributions
 import com.viser.organiser.ui.goalView
 import com.viser.organiser.ui.goals
@@ -191,7 +193,7 @@ fun MoneyScreen(nav: Nav) {
 
     editTxn?.let { t ->
         TxnDialog(t, onDismiss = { editTxn = null },
-            onSave = { u -> scope.launch { r.updateTxn(u); if (u.merchant.isNotBlank() && u.category != t.category) r.confirm(u, u.category) }; editTxn = null },
+            onSave = { u -> scope.launch { if (u.status == TxnStatus.CONFIRMED && u.category != t.category) r.confirm(u) else r.updateTxn(u) }; editTxn = null },
             onDelete = { scope.launch { r.deleteTxn(t) }; editTxn = null })
     }
     if (newGoal) GoalDialog(onDismiss = { newGoal = false }) { g -> scope.launch { r.saveGoal(g) }; newGoal = false }
@@ -294,16 +296,26 @@ fun TxnRow(t: Txn, onClick: () -> Unit) {
         }
         Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
             Text(t.merchant.ifBlank { t.category }, style = T.sans(15, 600), maxLines = 1, overflow = TextOverflow.Ellipsis)
-            Text("${t.category} · ${if (t.source == "sms") "SMS" else t.mode} · ${dateShort(t.occurredAt)}", style = T.sans(12, 400, color = C.Muted), maxLines = 1)
+            val extra = listOfNotNull(
+                t.note.takeIf { it.isNotBlank() },
+                if (t.isSplit) "split with " + t.people.joinToString(", ") else null,
+            ).joinToString(" · ")
+            Text(
+                if (extra.isNotEmpty()) "${t.category} · $extra" else "${t.category} · ${if (t.source == "sms") "SMS" else t.mode} · ${dateShort(t.occurredAt)}",
+                style = T.sans(12, 400, color = C.Muted), maxLines = 1, overflow = TextOverflow.Ellipsis,
+            )
         }
         val income = t.kind == TxnKind.INCOME
-        Text((if (income) "+" else "−") + rupees(t.amount), style = T.serif(17, 600, color = if (income) C.Good else C.Ink))
+        Column(horizontalAlignment = Alignment.End) {
+            Text((if (income) "+" else "−") + rupees(t.effective), style = T.serif(17, 600, color = if (income) C.Good else C.Ink))
+            if (t.isSplit) Text("of ${rupees(t.amount)}", style = T.sans(11, 500, color = C.Muted))
+        }
     }
 }
 
 @Composable
 private fun CategoryTotals(expenses: List<Txn>) {
-    val totals = expenses.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.amount } }.entries.sortedByDescending { it.value }
+    val totals = expenses.groupBy { it.category }.mapValues { e -> e.value.sumOf { it.effective } }.entries.sortedByDescending { it.value }
     val max = totals.firstOrNull()?.value ?: 1L
     Column(verticalArrangement = Arrangement.spacedBy(10.dp)) {
         SectionHeader("By category", null) {}
@@ -332,7 +344,7 @@ private fun Reports(ym: YearMonth, expenses: List<Txn>) {
     val six by flow.state(emptyList())
     val months = (0..5).map { start.plusMonths(it.toLong()) }
     val perMonth = months.map { m ->
-        m to six.filter { it.kind == TxnKind.EXPENSE && YearMonth.from(it.occurredAt.toLdt()) == m }.sumOf { it.amount }
+        m to six.filter { it.kind == TxnKind.EXPENSE && YearMonth.from(it.occurredAt.toLdt()) == m }.sumOf { it.effective }
     }
     val maxM = perMonth.maxOfOrNull { it.second }?.coerceAtLeast(1) ?: 1
     Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
@@ -353,7 +365,7 @@ private fun Reports(ym: YearMonth, expenses: List<Txn>) {
         CategoryTotals(expenses)
         SectionHeader("Top merchants", null) {}
         val top = expenses.filter { it.merchant.isNotBlank() }.groupBy { it.merchant }
-            .mapValues { e -> e.value.sumOf { it.amount } to e.value.size }.entries.sortedByDescending { it.value.first }.take(6)
+            .mapValues { e -> e.value.sumOf { it.effective } to e.value.size }.entries.sortedByDescending { it.value.first }.take(6)
         if (top.isEmpty()) Text("Nothing yet.", style = T.sans(14, 500, color = C.Muted))
         top.forEach { (m, p) ->
             Row(Modifier.fillMaxWidth().height(40.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -376,31 +388,30 @@ private fun shortK(paise: Long): String {
 
 // ------------------------------------------------------------------ dialogs
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
 private fun TxnDialog(t: Txn, onDismiss: () -> Unit, onSave: (Txn) -> Unit, onDelete: () -> Unit) {
+    val r = repo()
     var amount by remember { mutableStateOf((t.amount / 100.0).let { if (it % 1.0 == 0.0) it.toLong().toString() else it.toString() }) }
     var merchant by remember { mutableStateOf(t.merchant) }
-    var cat by remember { mutableStateOf(t.category) }
-    val cats = if (t.kind == TxnKind.INCOME) Categories.income else Categories.expense
+    var draft by remember { mutableStateOf(TxnDraft.from(t)) }
+    val splits by remember { r.db.txns().recentSplits() }.state(emptyList())
+    val knownPeople = remember(splits) { splits.flatMap { it.split('|') }.filter { it.isNotBlank() }.distinct() }
+    val paise = parseRupees(amount) ?: t.amount
     AlertDialog(
         onDismissRequest = onDismiss,
         containerColor = C.Ground,
-        title = { Text(if (t.kind == TxnKind.INCOME) "Edit income" else "Edit expense", style = T.serif(22, 600)) },
+        title = { Text("Edit entry", style = T.serif(22, 600)) },
         text = {
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 LightField(amount, { amount = it }, "Amount", keyboard = KeyboardOptions(keyboardType = KeyboardType.Decimal))
-                LightField(merchant, { merchant = it }, "Merchant / note")
+                LightField(merchant, { merchant = it }, "Merchant / from")
                 Text("${dateLong(t.occurredAt)} · ${timeHm(t.occurredAt)} · ${if (t.source == "sms") "${t.bank} SMS" else t.mode}", style = T.sans(12, 500, color = C.Muted))
-                FlowRow(horizontalArrangement = Arrangement.spacedBy(6.dp), verticalArrangement = Arrangement.spacedBy(6.dp)) {
-                    cats.forEach { c -> Chip(c, c == cat, height = 34.dp) { cat = c } }
-                }
+                TxnEditor(paise, draft, knownPeople, compactCategories = false) { draft = it }
             }
         },
         confirmButton = {
             TextButton(onClick = {
-                val p = parseRupees(amount) ?: t.amount
-                onSave(t.copy(amount = p, merchant = merchant.trim(), category = cat))
+                onSave(draft.apply(t.copy(amount = paise, merchant = merchant.trim())))
             }) { Text("Save", style = T.sans(14, 700)) }
         },
         dismissButton = {

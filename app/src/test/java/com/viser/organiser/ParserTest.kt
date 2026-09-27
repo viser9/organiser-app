@@ -103,3 +103,25 @@ class TimeParserTest {
         assertNotNull(TimeParser.parse("Buy milk tonight", now))
     }
 }
+
+class SplitTest {
+    private val t = com.viser.organiser.data.Txn(kind = TxnKind.EXPENSE, amount = 90000L, category = "Dining out", merchant = "Toit")
+
+    @Test fun splitEquallyWithTwoPeople() {
+        val d = com.viser.organiser.ui.TxnDraft(TxnKind.EXPENSE, "Dining out", "Team dinner", true, listOf("Aaquib", "Riya"), "")
+        val out = d.apply(t)
+        assertEquals(30000L, out.myShare); assertEquals(30000L, out.effective)
+        assertEquals(listOf("Aaquib", "Riya"), out.people); assertEquals("Team dinner", out.note)
+    }
+
+    @Test fun customShareAndIncomeSwitch() {
+        val d = com.viser.organiser.ui.TxnDraft(TxnKind.INCOME, "Refund", "", true, listOf("Riya"), "200")
+        val out = d.apply(t)
+        assertEquals(TxnKind.INCOME, out.kind); assertEquals(20000L, out.effective)
+    }
+
+    @Test fun notSplitKeepsWholeAmount() {
+        val out = com.viser.organiser.ui.TxnDraft(TxnKind.EXPENSE, "Dining out", "", false, listOf("Riya"), "").apply(t)
+        assertNull(out.myShare); assertEquals(90000L, out.effective); assertEquals("", out.splitWith)
+    }
+}

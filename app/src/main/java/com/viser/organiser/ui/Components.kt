@@ -21,6 +21,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.BasicTextField
+import androidx.compose.foundation.text.KeyboardActions
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material3.Icon
 import androidx.compose.material3.Text
@@ -302,6 +303,7 @@ fun LightField(
     singleLine: Boolean = true,
     keyboard: KeyboardOptions = KeyboardOptions.Default,
     leading: ImageVector? = null,
+    onDone: (() -> Unit)? = null,
 ) {
     BasicTextField(
         value = value,
@@ -309,6 +311,7 @@ fun LightField(
         singleLine = singleLine,
         textStyle = T.sans(15, 400),
         keyboardOptions = keyboard,
+        keyboardActions = if (onDone != null) KeyboardActions(onDone = { onDone() }) else KeyboardActions.Default,
         cursorBrush = SolidColor(C.Ink),
         modifier = modifier.fillMaxWidth(),
         decorationBox = { inner ->

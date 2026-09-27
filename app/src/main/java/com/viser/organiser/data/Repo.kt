@@ -57,9 +57,9 @@ class Repo(private val ctx: Context) {
         if (t.merchant.isNotBlank() && t.kind == TxnKind.EXPENSE) learn(t.merchant, t.category)
     }
 
-    suspend fun confirm(t: Txn, category: String) {
+    suspend fun confirm(t: Txn, category: String = t.category) {
         db.txns().upsert(t.copy(category = category, status = TxnStatus.CONFIRMED, updatedAt = now()))
-        if (t.merchant.isNotBlank()) learn(t.merchant, category)
+        if (t.merchant.isNotBlank() && t.kind == TxnKind.EXPENSE) learn(t.merchant, category)
         Notifier.cancelTxn(ctx, t.id)
     }
 

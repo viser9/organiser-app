@@ -1,5 +1,6 @@
 package com.viser.organiser.data
 
+import androidx.room.ColumnInfo
 import androidx.room.Entity
 import androidx.room.Index
 import androidx.room.PrimaryKey
@@ -105,7 +106,16 @@ data class Txn(
     val createdAt: Long = now(),
     val updatedAt: Long = now(),
     val deletedAt: Long? = null,
-)
+    /** '|'-delimited names this was split with, e.g. "|Aaquib|Riya|". Empty = not split. */
+    @ColumnInfo(defaultValue = "") val splitWith: String = "",
+    /** The owner's own part when split (paise); null = the whole amount is theirs. */
+    val myShare: Long? = null,
+) {
+    val people: List<String> get() = splitWith.split('|').filter { it.isNotBlank() }
+    val isSplit: Boolean get() = people.isNotEmpty()
+    /** What counts toward the owner's spend / income. */
+    val effective: Long get() = myShare ?: amount
+}
 
 @Entity(tableName = "goals")
 data class Goal(

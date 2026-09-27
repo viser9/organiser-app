@@ -79,6 +79,7 @@ object Backup {
         put("note", note); put("mode", mode); put("source", source); put("bank", bank); put("accountLast4", accountLast4)
         put("upiRef", upiRef); put("smsHash", smsHash ?: JSONObject.NULL); put("occurredAt", occurredAt); put("status", status)
         put("createdAt", createdAt); put("updatedAt", updatedAt); put("deletedAt", deletedAt ?: JSONObject.NULL)
+        put("splitWith", splitWith); put("myShare", myShare ?: JSONObject.NULL)
     }
 
     private fun txn(o: JSONObject) = Txn(
@@ -87,7 +88,7 @@ object Backup {
         bank = o.optString("bank"), accountLast4 = o.optString("accountLast4"), upiRef = o.optString("upiRef"),
         smsHash = if (o.isNull("smsHash")) null else o.optString("smsHash"), occurredAt = o.getLong("occurredAt"),
         status = o.getString("status"), createdAt = o.getLong("createdAt"), updatedAt = o.getLong("updatedAt"),
-        deletedAt = o.optLongOrNull("deletedAt"),
+        deletedAt = o.optLongOrNull("deletedAt"), splitWith = o.optString("splitWith"), myShare = o.optLongOrNull("myShare"),
     )
 
     private fun Goal.json() = JSONObject().apply {
