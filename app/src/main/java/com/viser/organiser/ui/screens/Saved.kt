@@ -151,7 +151,7 @@ fun SavedScreen(nav: Nav, focusSearch: Boolean) {
                         SectionMenu(
                             expanded = menuFor == s.name, index = idx, count = secs.size,
                             onDismiss = { menuFor = null },
-                            onMove = { to -> scope.launch { r.moveSection(s.name, to) }; menuFor = null },
+                            onMove = { to -> r.scope.launch { r.moveSection(s.name, to) }; menuFor = null },
                             onDelete = { confirmDelete = s.name; menuFor = null },
                         )
                     }
@@ -166,7 +166,7 @@ fun SavedScreen(nav: Nav, focusSearch: Boolean) {
         SectionsDialog(
             secs = secs,
             itemCount = { name -> items.count { name in it.sectionList } },
-            onMove = { name, to -> scope.launch { r.moveSection(name, to) } },
+            onMove = { name, to -> r.scope.launch { r.moveSection(name, to) } },
             onDelete = { name -> confirmDelete = name },
             onAdd = { addSection = true },
             onDismiss = { manage = false },
@@ -186,7 +186,7 @@ fun SavedScreen(nav: Nav, focusSearch: Boolean) {
             },
             confirmButton = {
                 TextButton(onClick = {
-                    scope.launch { r.deleteSection(name) }
+                    r.scope.launch { r.deleteSection(name) }
                     if (filter == name) filter = ALL
                     confirmDelete = null
                 }) { Text("Delete section", style = T.sans(14, 700, color = C.Late)) }
@@ -197,7 +197,7 @@ fun SavedScreen(nav: Nav, focusSearch: Boolean) {
 
     if (addSection) {
         NameDialog("New section", "e.g. Books, Gifts, Trips", onDismiss = { addSection = false }) { name ->
-            scope.launch { r.addSection(name) }
+            r.scope.launch { r.addSection(name) }
             addSection = false
         }
     }

@@ -81,6 +81,9 @@ interface TxnDao {
     @Query("SELECT splitWith FROM txns WHERE deletedAt IS NULL AND splitWith != '' ORDER BY occurredAt DESC LIMIT 200")
     fun recentSplits(): Flow<List<String>>
 
+    @Query("SELECT * FROM txns WHERE deletedAt IS NULL AND status = 'pending' AND occurredAt >= :since ORDER BY occurredAt DESC")
+    suspend fun recentPending(since: Long): List<Txn>
+
     @Query("SELECT COUNT(*) FROM txns WHERE smsHash = :hash")
     suspend fun hashCount(hash: String): Int
 

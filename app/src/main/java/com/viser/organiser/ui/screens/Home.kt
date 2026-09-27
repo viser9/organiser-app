@@ -196,7 +196,7 @@ fun HomeScreen(nav: Nav) {
                 }
                 today.take(4).forEachIndexed { i, t ->
                     TodayRow(t, last = i == minOf(today.size, 4) - 1,
-                        onToggle = { scope.launch { r.setDone(t.id, true) } },
+                        onToggle = { r.scope.launch { r.setDone(t.id, true) } },
                         onOpen = { nav.push(Screen.ItemDetail(t.id)) })
                 }
             }

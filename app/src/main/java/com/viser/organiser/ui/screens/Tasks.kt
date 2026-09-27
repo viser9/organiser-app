@@ -144,7 +144,7 @@ fun TasksScreen(nav: Nav) {
                 LazyColumn(verticalArrangement = Arrangement.spacedBy(10.dp), contentPadding = PaddingValues(bottom = 20.dp)) {
                     items(rows, key = { it.id }) { t ->
                         TodoCard(t, late = !t.done && (t.remindAt ?: Long.MAX_VALUE) < nowMs,
-                            onToggle = { scope.launch { r.setDone(t.id, !t.done) } },
+                            onToggle = { r.scope.launch { r.setDone(t.id, !t.done) } },
                             onOpen = { nav.push(Screen.ItemDetail(t.id)) })
                     }
                 }

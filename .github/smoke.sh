@@ -73,6 +73,7 @@ tap_text "Manage sections"; shot 08b-sections 2
 adb shell input keyevent KEYCODE_BACK; sleep 1
 go todos; shot 09-todos
 go settings; shot 10-settings
+adb shell input swipe 540 1500 540 700 300; shot 10b-settings-scrolled 2
 
 # Learning mode: enable the accessibility service, start learning, switch apps, mark a payment
 go learning; shot 11-learning-setup 4

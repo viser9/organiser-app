@@ -78,6 +78,7 @@ fun ReviewScreen(nav: Nav, startId: String?) {
 
     val current = pending.firstOrNull { it.id == first } ?: pending.firstOrNull()
     var draft by remember(current?.id) { mutableStateOf(current?.let { TxnDraft.from(it) }) }
+    var typedAmount by remember(current?.id) { mutableStateOf("") }
     val splits by remember { r.db.txns().recentSplits() }.state(emptyList())
     val knownPeople = remember(splits) { splits.flatMap { it.split('|') }.filter { it.isNotBlank() }.distinct() }
     val left = summarize(txns, contribs, YearMonth.now()).remaining
@@ -119,7 +120,7 @@ fun ReviewScreen(nav: Nav, startId: String?) {
                         Text("${rupees(left)} left this month" + if (pending.isNotEmpty()) " · ${pending.size} more" else "", style = T.sans(13, 400, color = C.Muted))
                     }
                     OutlineButton("Undo", height = 36.dp) {
-                        scope.launch { r.updateTxn(done.first.copy(status = com.viser.organiser.data.TxnStatus.PENDING)) }
+                        r.scope.launch { r.updateTxn(done.first.copy(status = com.viser.organiser.data.TxnStatus.PENDING)) }
                         first = done.first.id; confirmed = null
                     }
                 }
@@ -129,9 +130,11 @@ fun ReviewScreen(nav: Nav, startId: String?) {
                     PrimaryButton("Done", height = 48.dp) { nav.pop() }
                 }
                 else -> PaymentCard(current, draft ?: TxnDraft.from(current), knownPeople, onDraft = { draft = it },
+                    typedAmount = typedAmount, onTypedAmount = { typedAmount = it },
                     onConfirm = {
-                        val t = (draft ?: TxnDraft.from(current)).apply(current)
-                        scope.launch { r.confirm(t) }
+                        val base = if (current.amount == 0L) current.copy(amount = com.viser.organiser.util.parseRupees(typedAmount) ?: 0L) else current
+                        val t = (draft ?: TxnDraft.from(current)).apply(base)
+                        r.scope.launch { r.confirm(t) }
                         confirmed = t to t.category
                         first = null
                     },
@@ -139,7 +142,7 @@ fun ReviewScreen(nav: Nav, startId: String?) {
                         val idx = pending.indexOf(current)
                         first = pending.getOrNull(idx + 1)?.id ?: run { nav.pop(); null }
                     },
-                    onIgnore = { scope.launch { r.ignore(current) }; first = null },
+                    onIgnore = { r.scope.launch { r.ignore(current) }; first = null },
                 )
             }
             if (pending.size > 1 && confirmed == null) {
@@ -150,7 +153,13 @@ fun ReviewScreen(nav: Nav, startId: String?) {
 }
 
 @Composable
-private fun PaymentCard(t: Txn, d: TxnDraft, knownPeople: List<String>, onDraft: (TxnDraft) -> Unit, onConfirm: () -> Unit, onLater: () -> Unit, onIgnore: () -> Unit) {
+private fun PaymentCard(
+    t: Txn, d: TxnDraft, knownPeople: List<String>, onDraft: (TxnDraft) -> Unit,
+    typedAmount: String, onTypedAmount: (String) -> Unit,
+    onConfirm: () -> Unit, onLater: () -> Unit, onIgnore: () -> Unit,
+) {
+    val needsAmount = t.amount == 0L
+    val amount = if (needsAmount) com.viser.organiser.util.parseRupees(typedAmount) ?: 0L else t.amount
     val smsSaysIncome = t.kind == TxnKind.INCOME
     val income = d.kind == TxnKind.INCOME
     Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
@@ -164,7 +173,11 @@ private fun PaymentCard(t: Txn, d: TxnDraft, knownPeople: List<String>, onDraft:
                     if (smsSaysIncome) "Money received${who?.let { " from $it" } ?: ""}" else "Payment${who?.let { " to $it" } ?: ""}",
                     style = T.sans(15, 700),
                 )
-                Text("${t.mode} · ${t.bank} SMS · ${dateShort(t.occurredAt)} ${timeHm(t.occurredAt)}", style = T.sans(12, 400, color = C.Muted))
+                Text(
+                    if (t.source == "popup") "${t.note.ifBlank { "In-app payment" }} · spotted in the app · ${dateShort(t.occurredAt)} ${timeHm(t.occurredAt)}"
+                    else "${t.mode} · ${t.bank} SMS · ${dateShort(t.occurredAt)} ${timeHm(t.occurredAt)}",
+                    style = T.sans(12, 400, color = C.Muted),
+                )
             }
         }
         Row(
@@ -174,18 +187,24 @@ private fun PaymentCard(t: Txn, d: TxnDraft, knownPeople: List<String>, onDraft:
         ) {
             Column(Modifier.weight(1f), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                 Text("AMOUNT", style = T.sans(11, 600, 0.16.em, C.Muted))
-                BigAmount(t.amount, 36)
+                if (needsAmount) {
+                    com.viser.organiser.ui.LightField(
+                        typedAmount, { v -> onTypedAmount(v.filter { it.isDigit() || it == '.' }) }, "Enter amount (₹)",
+                        keyboard = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal),
+                    )
+                } else BigAmount(t.amount, 36)
             }
-            Text(
+            if (!needsAmount) Text(
                 "From bank SMS" + if (t.accountLast4.isNotEmpty()) "\na/c ••${t.accountLast4}" else "",
                 style = T.sans(12, 500, color = C.Good).copy(lineHeight = 17.sp),
                 textAlign = TextAlign.End,
             )
         }
-        TxnEditor(t.amount, d, knownPeople, compactCategories = true, onChange = onDraft)
+        if (needsAmount) Text("No bank SMS yet — type the amount, or tap Later and it fills in when the SMS arrives.", style = T.sans(12, 400, color = C.Muted))
+        TxnEditor(amount, d, knownPeople, compactCategories = true, onChange = onDraft)
         Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-            val share = if (d.split && d.people.isNotEmpty()) " · your ${rupees(d.myShare(t.amount))}" else ""
-            PrimaryButton((if (income) "Confirm income" else "Confirm spend") + share, height = 52.dp, onClick = onConfirm)
+            val share = if (d.split && d.people.isNotEmpty() && amount > 0) " · your ${rupees(d.myShare(amount))}" else ""
+            PrimaryButton((if (income) "Confirm income" else "Confirm spend") + share, height = 52.dp, enabled = amount > 0, onClick = onConfirm)
             Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                 OutlineButton("Later", Modifier.weight(1f), onClick = onLater)
                 OutlineButton("Not a payment", Modifier.weight(1f), onClick = onIgnore)

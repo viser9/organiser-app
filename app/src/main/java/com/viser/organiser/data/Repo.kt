@@ -113,6 +113,17 @@ class Repo(private val ctx: Context) {
         if (p.kind == TxnKind.TRANSFER) return null // card bill payments etc. are not spend
 
         if (p.upiRef.isNotEmpty() && db.txns().byRef(p.upiRef) != null) return null
+
+        // A popup entry waiting for its amount (payment spotted in-app, SMS arriving now): fill it in.
+        if (p.kind == TxnKind.EXPENSE) {
+            val waiting = db.txns().recentPending(time - 15 * 60_000L)
+                .firstOrNull { it.source == "popup" && it.amount == 0L && it.occurredAt <= time + 2 * 60_000L }
+            if (waiting != null) {
+                db.txns().upsert(waiting.copy(amount = p.amount, bank = p.bank, accountLast4 = p.accountLast4, upiRef = p.upiRef,
+                    smsHash = hash, mode = p.mode, updatedAt = now()))
+                return null // the popup / review screen already covers it
+            }
+        }
         val window = 10 * 60 * 1000L
         val near = db.txns().near(p.amount, p.kind, time - window, time + window)
         if (near.any { it.bank != p.bank || (it.accountLast4.isNotEmpty() && it.accountLast4 != p.accountLast4) }) return null
@@ -133,6 +144,32 @@ class Repo(private val ctx: Context) {
             status = TxnStatus.PENDING,
         )
         return if (db.txns().insert(t) > 0) t else null
+    }
+
+    /**
+     * A payment spotted by the "Did you just pay…?" detector. Reuses a bank SMS that already
+     * arrived in the last few minutes; otherwise creates a pending entry with the amount still unknown
+     * (the SMS fills it in when it lands — see [ingestSms]).
+     */
+    suspend fun popupTxn(merchant: String, payApp: String, at: Long): Txn {
+        val recentSms = db.txns().recentPending(at - 5 * 60_000L)
+            .firstOrNull { it.source == "sms" && it.kind == TxnKind.EXPENSE }
+        if (recentSms != null) {
+            val better = recentSms.copy(
+                merchant = if (recentSms.merchant.endsWith(" payment") || recentSms.merchant.contains('@')) merchant else recentSms.merchant,
+                note = recentSms.note.ifBlank { "via $payApp" },
+                updatedAt = now(),
+            )
+            db.txns().upsert(better)
+            Notifier.cancelTxn(ctx, better.id)
+            return better
+        }
+        val t = Txn(
+            kind = TxnKind.EXPENSE, amount = 0L, category = categoryFor(merchant, TxnKind.EXPENSE), merchant = merchant,
+            mode = "UPI", source = "popup", note = "via $payApp", occurredAt = at, status = TxnStatus.PENDING,
+        )
+        db.txns().upsert(t)
+        return t
     }
 
     // ------------------------------------------------------------------ goals

@@ -149,6 +149,22 @@ fun SettingsScreen(nav: Nav) {
             }
 
             Group("Payment detection") {
+                val svcOn = remember(tick) { com.viser.organiser.watch.Learning.serviceEnabled(ctx) }
+                val askOn = remember(tick) { com.viser.organiser.watch.PayWatch.askEnabled(ctx) }
+                PermRow(
+                    Ic.Card, "Ask “Did you just pay…?”",
+                    when {
+                        !svcOn -> "Turn on the Organiser accessibility service first (tap for steps)"
+                        askOn -> "After you pay in an app via GPay, PhonePe, slice… — tap to turn off"
+                        else -> "Off — tap to turn on"
+                    },
+                    ok = svcOn && askOn,
+                    clickableWhenOk = true,
+                ) {
+                    if (!svcOn) nav.push(com.viser.organiser.Screen.Learning)
+                    else { com.viser.organiser.watch.PayWatch.setAsk(ctx, !askOn); tick++ }
+                }
+                Divider()
                 ActionRow(Ic.Sliders, "Learning mode", if (com.viser.organiser.watch.Learning.isOn(ctx)) "On — recording app and screen changes" else "Record which screens appear while you pay, to tune the \"Did you just pay…?\" popup") {
                     nav.push(com.viser.organiser.Screen.Learning)
                 }
@@ -236,9 +252,9 @@ private fun Group(title: String, content: @Composable () -> Unit) {
 }
 
 @Composable
-private fun PermRow(icon: ImageVector, title: String, sub: String, ok: Boolean, onClick: () -> Unit) {
+private fun PermRow(icon: ImageVector, title: String, sub: String, ok: Boolean, clickableWhenOk: Boolean = false, onClick: () -> Unit) {
     Row(
-        Modifier.fillMaxWidth().clickable(enabled = !ok, onClick = onClick).padding(vertical = 14.dp),
+        Modifier.fillMaxWidth().clickable(enabled = !ok || clickableWhenOk, onClick = onClick).padding(vertical = 14.dp),
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(12.dp),
     ) {

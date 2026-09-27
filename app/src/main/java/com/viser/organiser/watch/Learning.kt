@@ -17,6 +17,8 @@ import androidx.core.app.NotificationManagerCompat
 import com.viser.organiser.MainActivity
 import com.viser.organiser.R
 import java.io.File
+import kotlinx.coroutines.cancel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 import java.util.Locale
@@ -189,30 +191,65 @@ class LearningReceiver : BroadcastReceiver() {
     }
 }
 
+/** On/off switch for the "Did you just pay…?" popup (on by default once the service is enabled). */
+object PayWatch {
+    private const val PREFS = "paywatch"
+    fun askEnabled(ctx: Context) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).getBoolean("ask", true)
+    fun setAsk(ctx: Context, on: Boolean) = ctx.getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putBoolean("ask", on).apply()
+
+    fun appLabel(ctx: Context, pkg: String): String = Learning.knownApps[pkg] ?: try {
+        val pm = ctx.packageManager
+        pm.getApplicationLabel(pm.getApplicationInfo(pkg, 0)).toString()
+    } catch (e: Exception) {
+        pkg.substringAfterLast('.').replaceFirstChar { it.uppercase() }
+    }
+}
+
 /**
- * Accessibility service. Only reads window-change events (which app, which screen class).
+ * Accessibility service. Only reads window-change events (which app, which screen class);
  * canRetrieveWindowContent is false in its config, so it cannot read what is on screen.
- * Today it only feeds learning mode; the payment popup will build on it.
+ * Feeds learning mode and the "Did you just pay…?" popup.
  */
 class PayWatchService : AccessibilityService() {
     private var lastPkg = ""
     private var lastCls = ""
+    private val detector = PayDetector()
+    private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
+    private lateinit var popup: PayPopup
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        popup = PayPopup(this, scope)
         if (Learning.isOn(this)) Learning.append(this, "SERVICE", "connected", "")
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent?) {
         if (event == null || event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
-        if (!Learning.isOn(this)) return
         val pkg = event.packageName?.toString() ?: return
         val cls = event.className?.toString().orEmpty()
         if (pkg == lastPkg && cls == lastCls) return
-        if (pkg == "com.android.systemui" && cls.isEmpty()) return
         lastPkg = pkg; lastCls = cls
-        Learning.append(this, "WIN", pkg, cls)
+
+        val learning = Learning.isOn(this)
+        if (learning && !(pkg == "com.android.systemui" && cls.isEmpty())) Learning.append(this, "WIN", pkg, cls)
+
+        val hit = detector.onWindow(pkg, cls, System.currentTimeMillis()) ?: return
+        if (learning) Learning.append(this, "DETECT", hit.merchantPkg, "${hit.payPkg} · ${hit.reason}")
+        if (!PayWatch.askEnabled(this)) return
+        val merchant = PayWatch.appLabel(this, hit.merchantPkg)
+        val payApp = PayWatch.appLabel(this, hit.payPkg)
+        val repo = com.viser.organiser.data.Repo.get(this)
+        scope.launch {
+            val txn = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) { repo.popupTxn(merchant, payApp, hit.at) }
+            if (::popup.isInitialized) popup.show(txn, payApp)
+        }
     }
 
     override fun onInterrupt() {}
+
+    override fun onDestroy() {
+        if (::popup.isInitialized) popup.dismiss()
+        scope.cancel()
+        super.onDestroy()
+    }
 }

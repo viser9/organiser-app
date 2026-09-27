@@ -193,15 +193,15 @@ fun MoneyScreen(nav: Nav) {
 
     editTxn?.let { t ->
         TxnDialog(t, onDismiss = { editTxn = null },
-            onSave = { u -> scope.launch { if (u.status == TxnStatus.CONFIRMED && u.category != t.category) r.confirm(u) else r.updateTxn(u) }; editTxn = null },
-            onDelete = { scope.launch { r.deleteTxn(t) }; editTxn = null })
+            onSave = { u -> r.scope.launch { if (u.status == TxnStatus.CONFIRMED && u.category != t.category) r.confirm(u) else r.updateTxn(u) }; editTxn = null },
+            onDelete = { r.scope.launch { r.deleteTxn(t) }; editTxn = null })
     }
-    if (newGoal) GoalDialog(onDismiss = { newGoal = false }) { g -> scope.launch { r.saveGoal(g) }; newGoal = false }
+    if (newGoal) GoalDialog(onDismiss = { newGoal = false }) { g -> r.scope.launch { r.saveGoal(g) }; newGoal = false }
     addTo?.let { v ->
         ContributionDialog(v, onDismiss = { addTo = null },
-            onSave = { amt -> scope.launch { r.contribute(v.goal.id, amt) }; addTo = null },
-            onPurchased = { scope.launch { r.saveGoal(v.goal.copy(purchased = true)) }; addTo = null },
-            onDelete = { scope.launch { r.saveGoal(v.goal.copy(deletedAt = System.currentTimeMillis())) }; addTo = null })
+            onSave = { amt -> r.scope.launch { r.contribute(v.goal.id, amt) }; addTo = null },
+            onPurchased = { r.scope.launch { r.saveGoal(v.goal.copy(purchased = true)) }; addTo = null },
+            onDelete = { r.scope.launch { r.saveGoal(v.goal.copy(deletedAt = System.currentTimeMillis())) }; addTo = null })
     }
 }
 

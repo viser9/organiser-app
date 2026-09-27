@@ -108,7 +108,7 @@ object Notifier {
         val flags = PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         val b = NotificationCompat.Builder(ctx, CH_MONEY)
             .setSmallIcon(R.drawable.ic_notif)
-            .setContentTitle("${rupees(t.amount)} $verb ${t.merchant} — spend or income?")
+            .setContentTitle(if (t.amount == 0L) "Did you just pay ${t.merchant}?" else "${rupees(t.amount)} $verb ${t.merchant} — spend or income?")
             .setContentText("${t.category} · ${t.bank} ${if (t.accountLast4.isNotEmpty()) "••" + t.accountLast4 else ""} · ${timeHm(t.occurredAt)}")
             .setAutoCancel(true)
             .setContentIntent(openApp(ctx, "review", t.id, n))

@@ -252,7 +252,7 @@ private fun SectionPicker(selected: Set<String>, onToggle: (String) -> Unit) {
         Text("Pick more than one if it fits both", style = T.sans(12, 400, color = C.Muted))
     }
     if (adding) NameDialog("New section", "e.g. Books, Gifts", onDismiss = { adding = false }) { n ->
-        scope.launch { r.addSection(n) }; onToggle(n); adding = false
+        r.scope.launch { r.addSection(n) }; onToggle(n); adding = false
     }
 }
 
@@ -372,7 +372,7 @@ private fun ColumnScope.TodoForm(nav: Nav, shared: Shared?) {
                 else -> "Save · remind ${friendlyWhen(at).replaceFirstChar { it.lowercase() }}"
             }
             PrimaryButton(cta, enabled = text.isNotBlank()) {
-                scope.launch {
+                r.scope.launch {
                     r.saveItem(Item(type = ItemType.TODO, title = text.trim(), sections = Item.encodeSections(labels), priority = priority,
                         remindAt = at, repeat = if (at != null) repeat else Repeat.NONE))
                 }
@@ -465,7 +465,7 @@ private fun ColumnScope.ExpenseForm(nav: Nav) {
                 enabled = paise != null && paise > 0,
             ) {
                 val p = paise ?: return@PrimaryButton
-                scope.launch {
+                r.scope.launch {
                     r.addManualTxn(Txn(kind = flow, amount = p, category = cat, merchant = what.trim(), mode = if (flow == TxnKind.INCOME) "Bank" else mode,
                         source = "manual", occurredAt = date, status = TxnStatus.CONFIRMED))
                 }
@@ -508,7 +508,7 @@ private fun ColumnScope.LinkForm(nav: Nav, shared: Shared?) {
             Column { Divider(); ReminderRow("Remind me to open it", remind) { remind = it }; Divider() }
             Spacer(Modifier.height(4.dp))
             PrimaryButton("Save link", enabled = clean.isNotBlank()) {
-                scope.launch {
+                r.scope.launch {
                     r.saveItem(Item(type = ItemType.LINK, title = title.trim(), body = details.trim(), url = clean, domain = domain,
                         sections = Item.encodeSections(secs), remindAt = remind))
                 }
@@ -551,7 +551,7 @@ private fun ColumnScope.NoteForm(nav: Nav, shared: Shared?) {
             }
             Spacer(Modifier.height(4.dp))
             PrimaryButton("Save note", enabled = title.isNotBlank() || body.isNotBlank()) {
-                scope.launch {
+                r.scope.launch {
                     r.saveItem(Item(type = ItemType.NOTE, title = title.trim(), body = body.trim(), sections = Item.encodeSections(secs),
                         checklist = checklist, pinned = pinned, remindAt = remind))
                 }
@@ -608,7 +608,7 @@ private fun ColumnScope.PlaceForm(nav: Nav, shared: Shared?) {
             }
             Spacer(Modifier.height(4.dp))
             PrimaryButton("Save place", enabled = name.isNotBlank() || clean.isNotBlank()) {
-                scope.launch {
+                r.scope.launch {
                     r.saveItem(Item(type = ItemType.PLACE, title = name.trim().ifBlank { "Saved place" }, url = clean, domain = domainOf(clean),
                         lat = ll?.first, lng = ll?.second, area = area.trim(), status = status, body = shared?.body.orEmpty(),
                         sections = Item.encodeSections(secs), remindAt = remind))

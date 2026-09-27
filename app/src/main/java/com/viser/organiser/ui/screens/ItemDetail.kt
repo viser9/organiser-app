@@ -93,6 +93,20 @@ fun ItemScreen(nav: Nav, id: String) {
         if (d.copy(updatedAt = 0) != s.copy(updatedAt = 0)) { delay(350); r.saveItem(d) }
     }
 
+    // Leaving the screen (back, or opening something else) saves any edit the debounce hadn't saved yet.
+    val deleting = remember { booleanArrayOf(false) }
+    val latestDraft = androidx.compose.runtime.rememberUpdatedState(draft)
+    val latestStored = androidx.compose.runtime.rememberUpdatedState(stored)
+    androidx.compose.runtime.DisposableEffect(id) {
+        onDispose {
+            val d = latestDraft.value
+            val s = latestStored.value
+            if (!deleting[0] && d != null && s != null && s.deletedAt == null && d.copy(updatedAt = 0) != s.copy(updatedAt = 0)) {
+                r.scope.launch { r.db.items().get(d.id)?.takeIf { it.deletedAt == null }?.let { r.saveItem(d) } }
+            }
+        }
+    }
+
     val item = draft
     Column(Modifier.fillMaxSize().background(C.Ground).statusBarsPadding().imePadding()) {
         Row(Modifier.padding(horizontal = 20.dp, vertical = 16.dp).fillMaxWidth().height(44.dp), verticalAlignment = Alignment.CenterVertically) {
@@ -108,7 +122,9 @@ fun ItemScreen(nav: Nav, id: String) {
                 Spacer(Modifier.width(10.dp))
             }
             CircleIconButton(Ic.Trash, "Delete") {
-                scope.launch { r.softDelete(id) }
+                deleting[0] = true
+                draft = null
+                r.scope.launch { r.softDelete(id) }
                 nav.pop()
             }
         }
@@ -154,10 +170,18 @@ fun ItemScreen(nav: Nav, id: String) {
             // type-specific actions
             when (item.type) {
                 ItemType.LINK -> {
-                    Text(item.url, style = T.sans(13, 400, color = C.Muted))
-                    PrimaryButton("Open ${item.domain.ifBlank { "link" }}", height = 48.dp) { openUrl(ctx, item.url) }
+                    UrlField(item.url, "Link") { u ->
+                        val clean = com.viser.organiser.util.findUrl(u) ?: u.trim()
+                        draft = item.copy(url = u.trim(), domain = com.viser.organiser.util.domainOf(clean))
+                    }
+                    PrimaryButton("Open ${item.domain.ifBlank { "link" }}", height = 48.dp, enabled = item.url.isNotBlank()) { openUrl(ctx, item.url) }
                 }
                 ItemType.PLACE -> {
+                    UrlField(item.url, "Google Maps link") { u ->
+                        val ll = com.viser.organiser.util.parseLatLng(u.trim())
+                        draft = item.copy(url = u.trim(), domain = com.viser.organiser.util.domainOf(u.trim()),
+                            lat = ll?.first ?: item.lat, lng = ll?.second ?: item.lng)
+                    }
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlineButton("Open in Maps", Modifier.weight(1f), height = 48.dp) { openMaps(ctx, item, navigate = false) }
                         Box(
@@ -266,7 +290,7 @@ fun ItemScreen(nav: Nav, id: String) {
             if (item.type != ItemType.TODO) {
                 OutlineButton("Make it a to-do", Modifier.fillMaxWidth(), height = 48.dp) {
                     val verb = when (item.type) { ItemType.PLACE -> "Visit "; ItemType.LINK -> "Read "; else -> "" }
-                    scope.launch {
+                    r.scope.launch {
                         r.saveItem(Item(type = ItemType.TODO, title = verb + item.title.ifBlank { item.domain }, sections = item.sections, remindAt = item.remindAt))
                     }
                     nav.pop()
@@ -276,7 +300,7 @@ fun ItemScreen(nav: Nav, id: String) {
     }
 
     if (addSec) NameDialog("New section", "e.g. Books", onDismiss = { addSec = false }) { n ->
-        scope.launch { r.addSection(n) }
+        r.scope.launch { r.addSection(n) }
         draft?.let { d -> draft = d.copy(sections = Item.encodeSections(d.sectionList + n)) }
         addSec = false
     }
@@ -285,5 +309,24 @@ fun ItemScreen(nav: Nav, id: String) {
         NameDialog("Area", "e.g. Indiranagar", initial = d?.area.orEmpty(), onDismiss = { editArea = false }) { a ->
             draft = d?.copy(area = a); editArea = false
         }
+    }
+}
+
+@Composable
+private fun UrlField(value: String, label: String, onChange: (String) -> Unit) {
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        Kicker(label)
+        BasicTextField(
+            value = value,
+            onValueChange = onChange,
+            singleLine = false,
+            maxLines = 4,
+            textStyle = T.sans(14, 400, color = C.Ink),
+            cursorBrush = SolidColor(C.Ink),
+            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = androidx.compose.ui.text.input.KeyboardType.Uri),
+            modifier = Modifier.fillMaxWidth().clip(RoundedCornerShape(14.dp)).background(Color.White)
+                .border(1.dp, C.Line, RoundedCornerShape(14.dp)).padding(14.dp),
+            decorationBox = { inner -> Box { if (value.isEmpty()) Text("https://…", style = T.sans(14, 400, color = C.Faint)); inner() } },
+        )
     }
 }
