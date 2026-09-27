@@ -41,6 +41,7 @@ object Ic {
     val Card = icon("card", 1.8f, rect(3.5f, 6f, 17f, 13f, 2f), "M3.5 10h17")
     val Inbox = icon("inbox", 1.8f, "M4 13 6.5 5h11L20 13v6H4z", "M4 13h4.5l1 2h5l1-2H20")
     val ChevronDown = icon("down", 2f, "m7 10 5 5 5-5")
+    val ChevronUp = icon("up", 2f, "m7 14 5-5 5 5")
     val ChevronRight = icon("right", 2f, "m9 6 6 6-6 6")
     val ChevronLeft = icon("left", 2f, "m15 6-6 6 6 6")
     val Close = icon("close", 1.8f, "M6 6l12 12M18 6 6 18")

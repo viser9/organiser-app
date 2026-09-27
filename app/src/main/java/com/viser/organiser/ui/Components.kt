@@ -13,6 +13,7 @@ import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
@@ -283,7 +284,7 @@ fun DarkField(
             Box(
                 (if (boxed) Modifier.background(C.DarkCard, shape).border(1.dp, C.DarkLine, shape).padding(horizontal = 14.dp) else Modifier)
                     .fillMaxWidth()
-                    .then(if (boxed) Modifier.height(minHeight) else Modifier),
+                    .then(if (boxed) Modifier.heightIn(min = minHeight).padding(vertical = if (singleLine) 0.dp else 12.dp) else Modifier),
                 contentAlignment = Alignment.CenterStart,
             ) {
                 if (value.isEmpty()) Text(placeholder, style = style.copy(color = C.Faint))

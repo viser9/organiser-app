@@ -27,6 +27,25 @@ class Repo(private val ctx: Context) {
         db.sections().upsert(Section(name.trim(), C_LABELS[all.size % C_LABELS.size], all.size))
     }
 
+    /** Moves a section to a new position (0 = front) and renumbers the rest. */
+    suspend fun moveSection(name: String, to: Int) {
+        val list = db.sections().all().toMutableList()
+        val i = list.indexOfFirst { it.name == name }
+        if (i < 0) return
+        val s = list.removeAt(i)
+        list.add(to.coerceIn(0, list.size), s)
+        list.forEachIndexed { idx, sec -> db.sections().upsert(sec.copy(sort = idx)) }
+    }
+
+    /** Deletes a section; items keep everything else and simply lose that label. */
+    suspend fun deleteSection(name: String) {
+        db.sections().delete(name)
+        val tag = "|$name|"
+        db.items().all().filter { it.sections.contains(tag) }.forEach { item ->
+            saveItem(item.copy(sections = Item.encodeSections(item.sectionList - name)))
+        }
+    }
+
     // ------------------------------------------------------------------ items
     suspend fun saveItem(item: Item) {
         val i = item.copy(updatedAt = now())

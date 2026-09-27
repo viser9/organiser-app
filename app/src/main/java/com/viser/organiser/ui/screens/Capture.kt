@@ -483,6 +483,7 @@ private fun ColumnScope.LinkForm(nav: Nav, shared: Shared?) {
     val scope = rememberCoroutineScope()
     var url by rememberSaveable { mutableStateOf(shared?.url.orEmpty()) }
     var title by rememberSaveable { mutableStateOf(shared?.title.orEmpty()) }
+    var details by rememberSaveable { mutableStateOf(shared?.body.orEmpty()) }
     var secs by remember { mutableStateOf(setOf("Links")) }
     var remind by rememberSaveable { mutableStateOf<Long?>(null) }
     val clean = findUrl(url) ?: url.trim()
@@ -498,6 +499,8 @@ private fun ColumnScope.LinkForm(nav: Nav, shared: Shared?) {
             }
         }
         DarkField(title, { title = it }, "Add a title (optional)")
+        DarkField(details, { details = it }, "Details — why you saved it, price, what to check…", singleLine = false, minHeight = 44.dp,
+            style = T.sans(15, 400, color = Color.White).copy(lineHeight = 21.sp))
     }
     run {
         Sheet {
@@ -506,7 +509,7 @@ private fun ColumnScope.LinkForm(nav: Nav, shared: Shared?) {
             Spacer(Modifier.height(4.dp))
             PrimaryButton("Save link", enabled = clean.isNotBlank()) {
                 scope.launch {
-                    r.saveItem(Item(type = ItemType.LINK, title = title.trim(), url = clean, domain = domain,
+                    r.saveItem(Item(type = ItemType.LINK, title = title.trim(), body = details.trim(), url = clean, domain = domain,
                         sections = Item.encodeSections(secs), remindAt = remind))
                 }
                 nav.tab(Tab.SAVED)

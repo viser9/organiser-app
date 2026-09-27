@@ -6,7 +6,14 @@ import android.net.Uri
 import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -87,6 +94,9 @@ fun SavedScreen(nav: Nav, focusSearch: Boolean) {
     var filter by rememberSaveable { mutableStateOf(ALL) }
     var grid by rememberSaveable { mutableStateOf(false) }
     var addSection by remember { mutableStateOf(false) }
+    var manage by remember { mutableStateOf(false) }
+    var menuFor by remember { mutableStateOf<String?>(null) }
+    var confirmDelete by remember { mutableStateOf<String?>(null) }
     val focus = remember { FocusRequester() }
 
     LaunchedEffect(focusSearch) { if (focusSearch) runCatching { focus.requestFocus() } }
@@ -132,14 +142,57 @@ fun SavedScreen(nav: Nav, focusSearch: Boolean) {
 
         BottomPanel {
             LazyRow(Modifier.weight(1f), horizontalArrangement = Arrangement.spacedBy(6.dp)) {
-                item { FilterButton("ALL", filter == ALL) { filter = ALL } }
-                items(secs, key = { it.name }) { s ->
-                    FilterButton(s.name.uppercase(Locale.ROOT), filter == s.name) { filter = if (filter == s.name) ALL else s.name }
+                item { FilterButton("ALL", filter == ALL, onLongPress = { manage = true }) { filter = ALL } }
+                itemsIndexed(secs, key = { _, s -> s.name }) { idx, s ->
+                    Box {
+                        FilterButton(s.name.uppercase(Locale.ROOT), filter == s.name, onLongPress = { menuFor = s.name }) {
+                            filter = if (filter == s.name) ALL else s.name
+                        }
+                        SectionMenu(
+                            expanded = menuFor == s.name, index = idx, count = secs.size,
+                            onDismiss = { menuFor = null },
+                            onMove = { to -> scope.launch { r.moveSection(s.name, to) }; menuFor = null },
+                            onDelete = { confirmDelete = s.name; menuFor = null },
+                        )
+                    }
                 }
             }
-            CircleIconButton(Ic.Plus, "Add a section") { addSection = true }
+            CircleIconButton(Ic.Sliders, "Manage sections") { manage = true }
         }
         BottomNav(Tab.SAVED, onTab = nav::tab, onCapture = { nav.push(Screen.Capture()) })
+    }
+
+    if (manage) {
+        SectionsDialog(
+            secs = secs,
+            itemCount = { name -> items.count { name in it.sectionList } },
+            onMove = { name, to -> scope.launch { r.moveSection(name, to) } },
+            onDelete = { name -> confirmDelete = name },
+            onAdd = { addSection = true },
+            onDismiss = { manage = false },
+        )
+    }
+    confirmDelete?.let { name ->
+        val n = items.count { name in it.sectionList }
+        AlertDialog(
+            onDismissRequest = { confirmDelete = null },
+            containerColor = C.Ground,
+            title = { Text("Delete “$name”?", style = T.serif(22, 600)) },
+            text = {
+                Text(
+                    if (n == 0) "No saved items use this section." else "$n saved item${if (n == 1) "" else "s"} will keep everything else and just lose this label. Nothing is deleted except the section.",
+                    style = T.sans(14, 400, color = C.Muted),
+                )
+            },
+            confirmButton = {
+                TextButton(onClick = {
+                    scope.launch { r.deleteSection(name) }
+                    if (filter == name) filter = ALL
+                    confirmDelete = null
+                }) { Text("Delete section", style = T.sans(14, 700, color = C.Late)) }
+            },
+            dismissButton = { TextButton(onClick = { confirmDelete = null }) { Text("Cancel", style = T.sans(14, 600, color = C.Muted)) } },
+        )
     }
 
     if (addSection) {
@@ -150,15 +203,16 @@ fun SavedScreen(nav: Nav, focusSearch: Boolean) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
-private fun FilterButton(label: String, active: Boolean, onClick: () -> Unit) {
+private fun FilterButton(label: String, active: Boolean, onLongPress: (() -> Unit)? = null, onClick: () -> Unit) {
     Box(
         Modifier
             .height(44.dp)
             .clip(RoundedCornerShape(12.dp))
             .background(if (active) C.Ink else Color.White)
             .border(1.dp, if (active) C.Ink else C.Line, RoundedCornerShape(12.dp))
-            .clickable(onClick = onClick)
+            .combinedClickable(onClick = onClick, onLongClick = onLongPress, onLongClickLabel = "Move or delete")
             .padding(horizontal = 12.dp),
         contentAlignment = Alignment.Center,
     ) {
@@ -208,7 +262,8 @@ fun SavedCard(i: Item, secs: List<Section>, compact: Boolean, onClick: () -> Uni
 }
 
 fun subtitle(i: Item): String = when (i.type) {
-    ItemType.LINK -> i.domain
+    // Links show what the owner wrote about them; the domain only when there are no details.
+    ItemType.LINK -> i.body.replace('\n', ' ').trim().take(140).ifBlank { i.domain }
     ItemType.PLACE -> listOf(i.area, i.body.lineSequence().firstOrNull().orEmpty()).filter { it.isNotBlank() }.joinToString(" · ")
         .ifBlank { if (i.lat != null) "%.4f, %.4f".format(i.lat, i.lng) else "Google Maps place" }
     else -> i.body.replace('\n', ' ').take(120).takeIf { i.title.isNotBlank() }.orEmpty()
@@ -265,4 +320,66 @@ fun NameDialog(title: String, hint: String, initial: String = "", onDismiss: () 
         confirmButton = { TextButton(onClick = { if (text.isNotBlank()) onSave(text.trim()) }) { Text("Save", style = T.sans(14, 700)) } },
         dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel", style = T.sans(14, 600, color = C.Muted)) } },
     )
+}
+
+@Composable
+private fun SectionMenu(expanded: Boolean, index: Int, count: Int, onDismiss: () -> Unit, onMove: (Int) -> Unit, onDelete: () -> Unit) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss, containerColor = Color.White) {
+        if (index > 0) {
+            DropdownMenuItem(text = { Text("Move to front", style = T.sans(14, 500)) }, onClick = { onMove(0) })
+            DropdownMenuItem(text = { Text("Move left", style = T.sans(14, 500)) }, onClick = { onMove(index - 1) })
+        }
+        if (index < count - 1) {
+            DropdownMenuItem(text = { Text("Move right", style = T.sans(14, 500)) }, onClick = { onMove(index + 1) })
+            DropdownMenuItem(text = { Text("Move to back", style = T.sans(14, 500)) }, onClick = { onMove(count - 1) })
+        }
+        DropdownMenuItem(text = { Text("Delete section", style = T.sans(14, 600, color = C.Late)) }, onClick = onDelete)
+    }
+}
+
+/** Reorder (front ↔ back), delete and add sections in one place. */
+@Composable
+private fun SectionsDialog(
+    secs: List<Section>,
+    itemCount: (String) -> Int,
+    onMove: (String, Int) -> Unit,
+    onDelete: (String) -> Unit,
+    onAdd: () -> Unit,
+    onDismiss: () -> Unit,
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        containerColor = C.Ground,
+        title = { Text("Sections", style = T.serif(22, 600)) },
+        text = {
+            Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Text("First in the list = first in the filter bar. Long-press a section in the bar for the same options.", style = T.sans(12, 400, color = C.Muted))
+                Spacer(Modifier.height(8.dp))
+                secs.forEachIndexed { idx, s ->
+                    Row(Modifier.fillMaxWidth().height(48.dp), verticalAlignment = Alignment.CenterVertically) {
+                        Box(Modifier.size(10.dp).clip(RoundedCornerShape(5.dp)).background(Color(s.color)))
+                        Spacer(Modifier.width(10.dp))
+                        Column(Modifier.weight(1f)) {
+                            Text(s.name, style = T.sans(15, 600), maxLines = 1, overflow = TextOverflow.Ellipsis)
+                            val n = itemCount(s.name)
+                            Text("$n item${if (n == 1) "" else "s"}", style = T.sans(11, 400, color = C.Muted))
+                        }
+                        SmallIcon(Ic.ChevronUp, "Move ${s.name} up", enabled = idx > 0) { onMove(s.name, idx - 1) }
+                        SmallIcon(Ic.ChevronDown, "Move ${s.name} down", enabled = idx < secs.size - 1) { onMove(s.name, idx + 1) }
+                        SmallIcon(Ic.Trash, "Delete ${s.name}", tint = C.Late) { onDelete(s.name) }
+                    }
+                }
+            }
+        },
+        confirmButton = { TextButton(onClick = onDismiss) { Text("Done", style = T.sans(14, 700)) } },
+        dismissButton = { TextButton(onClick = onAdd) { Text("+ New section", style = T.sans(14, 600)) } },
+    )
+}
+
+@Composable
+private fun SmallIcon(icon: androidx.compose.ui.graphics.vector.ImageVector, label: String, enabled: Boolean = true, tint: Color = C.Ink, onClick: () -> Unit) {
+    Box(
+        Modifier.size(40.dp).clip(RoundedCornerShape(20.dp)).clickable(enabled = enabled, onClickLabel = label, onClick = onClick),
+        contentAlignment = Alignment.Center,
+    ) { Icon(icon, label, tint = if (enabled) tint else C.Sheet, modifier = Modifier.size(18.dp)) }
 }

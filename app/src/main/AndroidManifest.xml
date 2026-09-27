@@ -21,7 +21,7 @@
         <package android:name="in.org.npci.upiapp" />
         <package android:name="com.dreamplug.androidapp" />
         <package android:name="in.amazon.mShop.android.shopping" />
-        <package android:name="com.indiaideas.slice" />
+        <package android:name="indwin.c3.shareapp" />
         <package android:name="com.sbi.lotusintouch" />
         <package android:name="com.sbi.upi" />
         <package android:name="com.snapwork.hdfc" />

@@ -43,7 +43,7 @@ object Learning {
         "in.org.npci.upiapp" to "BHIM",
         "com.dreamplug.androidapp" to "CRED",
         "in.amazon.mShop.android.shopping" to "Amazon",
-        "com.indiaideas.slice" to "slice",
+        "indwin.c3.shareapp" to "slice",
         "com.sbi.lotusintouch" to "SBI YONO",
         "com.sbi.upi" to "SBI BHIM Pay",
         "com.snapwork.hdfc" to "HDFC MobileBanking",

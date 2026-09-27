@@ -69,6 +69,8 @@ adb shell am start -a android.intent.action.SEND -t text/plain --es android.inte
 shot 06-share-place
 go capture expense; shot 07-capture-expense
 go saved; shot 08-saved
+tap_text "Manage sections"; shot 08b-sections 2
+adb shell input keyevent KEYCODE_BACK; sleep 1
 go todos; shot 09-todos
 go settings; shot 10-settings
 
