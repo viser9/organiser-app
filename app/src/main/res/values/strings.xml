@@ -1,3 +1,5 @@
 <resources>
     <string name="app_name">Organiser</string>
+    <string name="watch_label">Organiser payment detection</string>
+    <string name="watch_description">Lets Organiser notice when you switch to a UPI app and back, so it can ask \"Did you just pay…?\". It only sees which app and screen is open — never the text on screen, amounts or your PIN. Learning mode records these app and screen changes for up to 3 hours to tune detection.</string>
 </resources>

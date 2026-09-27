@@ -54,6 +54,7 @@ sealed class Screen {
     data class Capture(val type: String? = null, val shared: Shared? = null) : Screen()
     data class Review(val startId: String? = null) : Screen()
     data object Settings : Screen()
+    data object Learning : Screen()
     data class ItemDetail(val id: String) : Screen()
 }
 
@@ -124,6 +125,7 @@ class MainActivity : ComponentActivity() {
             "saved" -> nav.replace(Screen.Saved())
             "todos" -> nav.replace(Screen.Tasks)
             "settings" -> { nav.replace(Screen.Home); nav.push(Screen.Settings) }
+            "learning" -> { nav.replace(Screen.Home); nav.push(Screen.Settings); nav.push(Screen.Learning) }
             "capture" -> nav.push(Screen.Capture(type = id))
         }
         i.removeExtra(EXTRA_ROUTE)
@@ -151,6 +153,7 @@ fun AppRoot(nav: Nav) {
                 is Screen.Capture -> CaptureScreen(nav, s.type, s.shared)
                 is Screen.Review -> ReviewScreen(nav, s.startId)
                 Screen.Settings -> SettingsScreen(nav)
+                Screen.Learning -> com.viser.organiser.ui.screens.LearningScreen(nav)
                 is Screen.ItemDetail -> ItemScreen(nav, s.id)
             }
         }

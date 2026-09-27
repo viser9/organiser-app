@@ -148,6 +148,12 @@ fun SettingsScreen(nav: Nav) {
                 }
             }
 
+            Group("Payment detection") {
+                ActionRow(Ic.Sliders, "Learning mode", if (com.viser.organiser.watch.Learning.isOn(ctx)) "On — recording app and screen changes" else "Record which screens appear while you pay, to tune the \"Did you just pay…?\" popup") {
+                    nav.push(com.viser.organiser.Screen.Learning)
+                }
+            }
+
             Group("Expenses") {
                 ActionRow(Ic.Sms, "Re-scan SMS inbox", "Look through the last 45 days again") {
                     if (!sOk) { Toast.makeText(ctx, "Allow SMS access first", Toast.LENGTH_SHORT).show(); return@ActionRow }

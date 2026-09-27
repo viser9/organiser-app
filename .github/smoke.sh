@@ -72,6 +72,22 @@ go saved; shot 08-saved
 go todos; shot 09-todos
 go settings; shot 10-settings
 
+# Learning mode: enable the accessibility service, start learning, switch apps, mark a payment
+go learning; shot 11-learning-setup 4
+adb shell settings put secure enabled_accessibility_services $PKG/$PKG.watch.PayWatchService
+adb shell settings put secure accessibility_enabled 1
+sleep 3
+go learning; sleep 3
+tap_text "Start learning (3 hours)"; sleep 2
+adb shell am start -a android.settings.SETTINGS; sleep 3
+adb shell am start -a android.intent.action.VIEW -d "https://example.com" ; sleep 3
+adb shell input keyevent KEYCODE_HOME; sleep 2
+go learning; sleep 2
+tap_text "Mark: Paid ✓"; sleep 2
+shot 12-learning-log 3
+adb shell cmd statusbar expand-notifications; shot 13-learning-notification 3
+adb shell cmd statusbar collapse
+
 adb logcat -d > shots/logcat.txt
 adb logcat -d | grep -iE "organiser|sms" | grep -iE "exception|error|denied" > shots/app-errors.txt || true
 if grep -q "FATAL EXCEPTION" shots/logcat.txt; then

@@ -26,7 +26,12 @@ class SmsReceiver : BroadcastReceiver() {
         val repo = Repo.get(ctx)
         repo.scope.launch {
             try {
-                repo.ingestSms(sender, body, time)?.let { Notifier.txn(ctx, it) }
+                val t = repo.ingestSms(sender, body, time)
+                // Learning mode: note when a bank SMS lands (sender header + direction only)
+                if (com.viser.organiser.watch.Learning.isOn(ctx) && SmsParser.looksLikeBankSender(sender)) {
+                    com.viser.organiser.watch.Learning.append(ctx, "SMS", sender, t?.kind ?: "not a payment")
+                }
+                t?.let { Notifier.txn(ctx, it) }
             } finally { pending.finish() }
         }
     }
