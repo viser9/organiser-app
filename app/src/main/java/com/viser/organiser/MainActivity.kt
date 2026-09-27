@@ -119,6 +119,11 @@ class MainActivity : ComponentActivity() {
             "item" -> if (id != null) { nav.replace(Screen.Tasks); nav.push(Screen.ItemDetail(id)) }
             "review" -> { nav.replace(Screen.Money); nav.push(Screen.Review(id)) }
             "money" -> nav.replace(Screen.Money)
+            "home" -> nav.replace(Screen.Home)
+            "saved" -> nav.replace(Screen.Saved())
+            "todos" -> nav.replace(Screen.Tasks)
+            "settings" -> { nav.replace(Screen.Home); nav.push(Screen.Settings) }
+            "capture" -> nav.push(Screen.Capture(type = id))
         }
         i.removeExtra(EXTRA_ROUTE)
     }

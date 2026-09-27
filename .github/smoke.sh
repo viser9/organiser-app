@@ -1,0 +1,41 @@
+#!/bin/bash
+# Emulator smoke test: install, grant, open every screen, screenshot, fail on crash.
+set -x
+PKG=com.viser.organiser
+APK=app/build/outputs/apk/release/app-release.apk
+mkdir -p shots
+adb install -r "$APK" || exit 1
+for p in POST_NOTIFICATIONS RECEIVE_SMS READ_SMS; do adb shell pm grant $PKG android.permission.$p; done
+adb logcat -c
+
+NOW=$(( $(date +%s) * 1000 ))
+# Seed bank SMS into the inbox (works on emulator images where shell may write the SMS provider)
+adb shell content insert --uri content://sms/inbox --bind address:s:VM-SBIUPI --bind "body:s:'Dear UPI user A/C X4821 debited by 349.0 on date 27Sep26 trf to SWIGGY Refno 426512345678. If not u? call 1800111109. -SBI'" --bind date:l:$NOW --bind read:i:1
+adb shell content insert --uri content://sms/inbox --bind address:s:AD-HDFCBK --bind "body:s:'Spent Rs.1249.00 On HDFC Bank Card 1234 At AMAZON On 2026-09-27:16:18:00 Not You? Call 18002586161'" --bind date:l:$((NOW+1000)) --bind read:i:1
+adb shell content insert --uri content://sms/inbox --bind address:s:JD-SLICEIT --bind "body:s:'Rs. 212 paid to Uber India from your slice account. UPI Ref: 426511112222'" --bind date:l:$((NOW+2000)) --bind read:i:1
+adb shell content insert --uri content://sms/inbox --bind address:s:VM-SBIINB --bind "body:s:'Your OTP for transaction of Rs.500 at AMAZON is 123456. Do not share.'" --bind date:l:$((NOW+3000)) --bind read:i:1
+
+shot() { sleep "${2:-4}"; adb exec-out screencap -p > "shots/$1.png"; }
+go() { adb shell am start -n $PKG/.MainActivity -f 0x24000000 --es route "$1" ${2:+--es id "$2"}; }
+
+adb shell am start -n $PKG/.MainActivity; shot 01-home 10
+go review; shot 02-review
+adb shell input keyevent KEYCODE_BACK; sleep 1
+go money; shot 03-money
+go capture todo; sleep 3; adb shell input text "Call%sbank%stomorrow%s11am"; shot 04-capture-todo 3
+adb shell input keyevent KEYCODE_BACK; adb shell input keyevent KEYCODE_BACK; sleep 1
+go capture ""; shot 05-capture-chooser
+adb shell am start -a android.intent.action.SEND -t text/plain --es android.intent.extra.TEXT "'Toit Brewpub https://www.google.com/maps/place/Toit/@12.9790,77.6408,17z'" -n $PKG/.MainActivity
+shot 06-share-place
+go capture expense; shot 07-capture-expense
+go saved; shot 08-saved
+go todos; shot 09-todos
+go settings; shot 10-settings
+
+adb logcat -d > shots/logcat.txt
+if grep -q "FATAL EXCEPTION" shots/logcat.txt; then
+  echo "::error::App crashed"
+  grep -A 30 "FATAL EXCEPTION" shots/logcat.txt | head -80
+  exit 1
+fi
+echo "No crashes"
