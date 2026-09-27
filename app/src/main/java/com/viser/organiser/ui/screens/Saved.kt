@@ -284,8 +284,18 @@ fun TypeBadge(type: String) {
 
 /** Hands off to Google Maps (C-5); Maps uses its own connection. */
 fun openMaps(ctx: Context, i: Item, navigate: Boolean) {
+    // Navigate goes to the exact saved place, never a search by its name:
+    //  1) coordinates known (long Maps links carry them) → turn-by-turn straight away;
+    //  2) only a short maps.app.goo.gl link → open that exact place in Maps (tap Directions there);
+    //     the phone can't unshorten the link itself because Organiser has no internet access;
+    //  3) no link at all → fall back to searching the name.
+    val mapsLink = i.url.takeIf { it.isNotBlank() && com.viser.organiser.util.isMapsUrl(it) }
     val uri = when {
         navigate && i.lat != null && i.lng != null -> Uri.parse("google.navigation:q=${i.lat},${i.lng}")
+        navigate && mapsLink != null -> {
+            Toast.makeText(ctx, "Opening the saved place — tap Directions in Maps", Toast.LENGTH_SHORT).show()
+            Uri.parse(mapsLink)
+        }
         navigate -> Uri.parse("https://www.google.com/maps/dir/?api=1&destination=" + Uri.encode(i.title.ifBlank { i.url }))
         i.url.isNotBlank() -> Uri.parse(i.url)
         i.lat != null && i.lng != null -> Uri.parse("geo:${i.lat},${i.lng}?q=${i.lat},${i.lng}(" + Uri.encode(i.title) + ")")
