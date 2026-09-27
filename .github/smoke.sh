@@ -15,6 +15,8 @@ adb shell content insert --uri content://sms/inbox --bind address:s:AD-HDFCBK --
 adb shell content insert --uri content://sms/inbox --bind address:s:JD-SLICEIT --bind "body:s:'Rs. 212 paid to Uber India from your slice account. UPI Ref: 426511112222'" --bind date:l:$((NOW+2000)) --bind read:i:1
 adb shell content insert --uri content://sms/inbox --bind address:s:VM-SBIINB --bind "body:s:'Your OTP for transaction of Rs.500 at AMAZON is 123456. Do not share.'" --bind date:l:$((NOW+3000)) --bind read:i:1
 
+adb shell content query --uri content://sms/inbox --projection address:body > shots/sms-inbox.txt 2>&1
+
 shot() { sleep "${2:-4}"; adb exec-out screencap -p > "shots/$1.png"; }
 go() { adb shell am start -n $PKG/.MainActivity -f 0x24000000 --es route "$1" ${2:+--es id "$2"}; }
 
@@ -33,6 +35,7 @@ go todos; shot 09-todos
 go settings; shot 10-settings
 
 adb logcat -d > shots/logcat.txt
+adb logcat -d | grep -iE "organiser|sms" | grep -iE "exception|error|denied" > shots/app-errors.txt || true
 if grep -q "FATAL EXCEPTION" shots/logcat.txt; then
   echo "::error::App crashed"
   grep -A 30 "FATAL EXCEPTION" shots/logcat.txt | head -80

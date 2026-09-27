@@ -34,6 +34,9 @@ jobs:
             echo "::warning::No KEYSTORE_B64 secret - APK will be debug-signed"
           fi
 
+      - name: Unit tests (SMS + time parsing)
+        run: gradle :app:testReleaseUnitTest --no-daemon
+
       - name: Build release APK
         env:
           SIGNING_STORE_PASSWORD: ${{ secrets.SIGNING_STORE_PASSWORD }}

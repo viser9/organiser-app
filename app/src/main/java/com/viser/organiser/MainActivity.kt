@@ -11,6 +11,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.key
 import androidx.compose.runtime.mutableStateListOf
 import androidx.compose.ui.Modifier
 import androidx.lifecycle.lifecycleScope
@@ -139,15 +140,19 @@ fun AppRoot(nav: Nav) {
         else -> C.Ground
     }
     Box(Modifier.fillMaxSize().background(bg)) {
-        when (val s = nav.current) {
-            Screen.Home -> HomeScreen(nav)
-            is Screen.Saved -> SavedScreen(nav, s.focusSearch)
-            Screen.Tasks -> TasksScreen(nav)
-            Screen.Money -> MoneyScreen(nav)
-            is Screen.Capture -> CaptureScreen(nav, s.type, s.shared)
-            is Screen.Review -> ReviewScreen(nav, s.startId)
-            Screen.Settings -> SettingsScreen(nav)
-            is Screen.ItemDetail -> ItemScreen(nav, s.id)
+        val s = nav.current
+        // Key by stack depth + screen so a new Capture/Review never reuses the previous one's state.
+        key(nav.stack.size, s) {
+            when (s) {
+                Screen.Home -> HomeScreen(nav)
+                is Screen.Saved -> SavedScreen(nav, s.focusSearch)
+                Screen.Tasks -> TasksScreen(nav)
+                Screen.Money -> MoneyScreen(nav)
+                is Screen.Capture -> CaptureScreen(nav, s.type, s.shared)
+                is Screen.Review -> ReviewScreen(nav, s.startId)
+                Screen.Settings -> SettingsScreen(nav)
+                is Screen.ItemDetail -> ItemScreen(nav, s.id)
+            }
         }
     }
 }
