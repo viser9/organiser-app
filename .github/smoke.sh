@@ -21,6 +21,14 @@ shot() { sleep "${2:-4}"; adb exec-out screencap -p > "shots/$1.png"; }
 go() { adb shell am start -n $PKG/.MainActivity -f 0x24000000 --es route "$1" ${2:+--es id "$2"}; }
 
 adb shell am start -n $PKG/.MainActivity; shot 01-home 10
+# Deliver real incoming SMS through the modem (tests SmsReceiver -> parser -> notification)
+adb emu sms send VMSBIUPI "Dear UPI user A/C X4821 debited by 349.0 on date 27Sep26 trf to SWIGGY Refno 426512345678. If not u? call 1800111109. -SBI" | tee shots/emu-sms.txt
+sleep 2
+adb emu sms send ADHDFCBK "Spent Rs.1249.00 On HDFC Bank Card 1234 At AMAZON On 2026-09-27:16:18:00 Not You? Call 18002586161" | tee -a shots/emu-sms.txt
+sleep 6
+adb shell cmd statusbar expand-notifications; shot 01b-notifications 3
+adb shell cmd statusbar collapse; sleep 1
+go home; shot 01c-home-after-sms 3
 go review; shot 02-review
 adb shell input keyevent KEYCODE_BACK; sleep 1
 go money; shot 03-money
