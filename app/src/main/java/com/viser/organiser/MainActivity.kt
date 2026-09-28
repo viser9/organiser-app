@@ -55,6 +55,7 @@ sealed class Screen {
     data class Review(val startId: String? = null) : Screen()
     data object Settings : Screen()
     data object Learning : Screen()
+    data object PayApps : Screen()
     data class ItemDetail(val id: String) : Screen()
 }
 
@@ -103,6 +104,8 @@ class MainActivity : ComponentActivity() {
         super.onResume()
         // Re-scan the SMS inbox on open, in case the phone killed the receiver (risk mitigation).
         lifecycleScope.launch { SmsImporter.importInbox(this@MainActivity) }
+        // Pick up payment apps installed since last time
+        lifecycleScope.launch(kotlinx.coroutines.Dispatchers.IO) { com.viser.organiser.watch.PayApps.refresh(this@MainActivity) }
     }
 
     private fun handleIntent(i: Intent?) {
@@ -125,6 +128,7 @@ class MainActivity : ComponentActivity() {
             "saved" -> nav.replace(Screen.Saved())
             "todos" -> nav.replace(Screen.Tasks)
             "settings" -> { nav.replace(Screen.Home); nav.push(Screen.Settings) }
+            "payapps" -> { nav.replace(Screen.Home); nav.push(Screen.Settings); nav.push(Screen.PayApps) }
             "learning" -> { nav.replace(Screen.Home); nav.push(Screen.Settings); nav.push(Screen.Learning) }
             "capture" -> nav.push(Screen.Capture(type = id))
         }
@@ -154,6 +158,7 @@ fun AppRoot(nav: Nav) {
                 is Screen.Review -> ReviewScreen(nav, s.startId)
                 Screen.Settings -> SettingsScreen(nav)
                 Screen.Learning -> com.viser.organiser.ui.screens.LearningScreen(nav)
+                Screen.PayApps -> com.viser.organiser.ui.screens.PayAppsScreen(nav)
                 is Screen.ItemDetail -> ItemScreen(nav, s.id)
             }
         }

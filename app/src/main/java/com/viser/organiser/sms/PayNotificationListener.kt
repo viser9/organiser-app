@@ -47,7 +47,8 @@ class PayNotificationListener : NotificationListenerService() {
     override fun onNotificationPosted(sbn: StatusBarNotification?) {
         sbn ?: return
         val pkg = sbn.packageName ?: return
-        val label = WATCHED[pkg] ?: return
+        // Every payment / bank app found on the phone (see PayApps), not a fixed list.
+        val label = com.viser.organiser.watch.PayApps.watchedForNotifications(applicationContext)[pkg] ?: return
         val n = sbn.notification ?: return
         if (n.flags and Notification.FLAG_GROUP_SUMMARY != 0) return
         if (n.flags and Notification.FLAG_ONGOING_EVENT != 0) return

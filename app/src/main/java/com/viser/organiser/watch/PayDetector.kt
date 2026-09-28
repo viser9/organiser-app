@@ -10,7 +10,8 @@ package com.viser.organiser.watch
  *  - Google Pay (Flutter) reports the same screen name for everything, so it relies on the merchant side.
  */
 class PayDetector(
-    private val paymentApps: Set<String> = DEFAULT_PAYMENT_APPS,
+    /** Apps you pay *with*; a function so newly installed / switched-off apps take effect immediately. */
+    private val paymentAppsProvider: () -> Set<String> = { DEFAULT_PAYMENT_APPS },
     private val ownPackage: String = "com.viser.organiser",
 ) {
     /** [standalone] = the payment app was opened on its own (QR scan, send to a contact) — no merchant app. */
@@ -51,6 +52,7 @@ class PayDetector(
 
     /** Feed every window change; returns a detection when a payment very likely just happened. */
     fun onWindow(pkg: String, cls: String, t: Long): Detection? {
+        val paymentApps = paymentAppsProvider()
         // Leaving a payment app that was opened on its own (home screen → GPay → home screen / another app)
         var standaloneHit: Detection? = null
         val sp = standalonePay

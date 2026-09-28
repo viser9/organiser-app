@@ -81,6 +81,7 @@ go todos; shot 09-todos
 adb shell cmd notification allow_listener com.viser.organiser/com.viser.organiser.sms.PayNotificationListener
 go settings; shot 10-settings
 adb shell input swipe 540 1500 540 700 300; shot 10b-settings-scrolled 2
+go payapps; shot 10c-payment-apps 4
 
 # Learning mode: enable the accessibility service, start learning, switch apps, mark a payment
 go learning; shot 11-learning-setup 4

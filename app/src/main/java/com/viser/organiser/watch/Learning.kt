@@ -111,6 +111,9 @@ object Learning {
             add("# Device: ${Build.MANUFACTURER} ${Build.MODEL} · Android ${Build.VERSION.RELEASE} (API ${Build.VERSION.SDK_INT}) · Organiser $appV")
             add("# Payment-related apps installed:")
             addAll(if (installed.isEmpty()) listOf("#   (none of the known ones)") else installed)
+            val detected = runCatching { PayApps.refresh(ctx) }.getOrDefault(emptyList())
+            add("# Payment apps found on this phone (${detected.size}):")
+            detected.forEach { add("#   ${it.label} (${it.pkg}) · ${it.kind.label}${if (it.dual) " · shopping/chat" else ""}${if (it.on) "" else " · OFF"}") }
             add("# time | kind | app | screen")
         }
         file(ctx).writeText(lines.joinToString("\n") + "\n")
@@ -213,7 +216,7 @@ object PayWatch {
 class PayWatchService : AccessibilityService() {
     private var lastPkg = ""
     private var lastCls = ""
-    private val detector = PayDetector()
+    private val detector = PayDetector({ PayApps.paymentAppsForDetector(this) })
     private val scope = kotlinx.coroutines.CoroutineScope(kotlinx.coroutines.SupervisorJob() + kotlinx.coroutines.Dispatchers.Main)
     private lateinit var popup: PayPopup
 
@@ -235,6 +238,7 @@ class PayWatchService : AccessibilityService() {
         super.onServiceConnected()
         instance = this
         popup = PayPopup(this, scope)
+        scope.launch(kotlinx.coroutines.Dispatchers.IO) { PayApps.refresh(this@PayWatchService) }
         if (Learning.isOn(this)) Learning.append(this, "SERVICE", "connected", "")
     }
 
