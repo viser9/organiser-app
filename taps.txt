@@ -1,0 +1,11 @@
+tap 'Yes' at 935 1269
+tap 'Add a person's name' at 313 1464
+tap 'Add a person's name' at 313 1579
+tap '+ Label' at 138 597
+tap 'Work' at 391 920
+tap 'Yes' at 961 1831
+tap 'Add a person's name' at 287 2031
+tap 'Manage sections' at 964 2042
+tap 'Start learning (3 hours)' at 540 1257
+tap 'Mark: Paid ✓' at 312 1933
+tap 'Preview the “Did you just pay…?” popup' at 540 861
