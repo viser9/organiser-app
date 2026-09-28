@@ -13,7 +13,8 @@ class PayDetector(
     private val paymentApps: Set<String> = DEFAULT_PAYMENT_APPS,
     private val ownPackage: String = "com.viser.organiser",
 ) {
-    data class Detection(val merchantPkg: String, val payPkg: String, val at: Long, val reason: String)
+    /** [standalone] = the payment app was opened on its own (QR scan, send to a contact) — no merchant app. */
+    data class Detection(val merchantPkg: String, val payPkg: String, val at: Long, val reason: String, val standalone: Boolean = false)
 
     private data class Session(
         val merchant: String,
@@ -29,6 +30,15 @@ class PayDetector(
     private var lastCls: String = ""
     private var lastAppAt = 0L
     private var session: Session? = null
+    private var standalonePay: String? = null
+    private var standaloneStart = 0L
+
+    /** Brief system surfaces that pop up in the middle of a payment (keyboard, fingerprint, status bar). */
+    private fun isTransient(pkg: String, cls: String): Boolean {
+        val p = pkg.lowercase()
+        return p in IGNORED || p.contains("inputmethod") || p.contains("keyboard") || p.contains("honeyboard") ||
+            p.contains("biometric") || p.contains("permissioncontroller") || cls.contains("SoftInputWindow")
+    }
 
     fun isIgnored(pkg: String, cls: String): Boolean {
         val p = pkg.lowercase()
@@ -41,7 +51,16 @@ class PayDetector(
 
     /** Feed every window change; returns a detection when a payment very likely just happened. */
     fun onWindow(pkg: String, cls: String, t: Long): Detection? {
-        if (isIgnored(pkg, cls)) return null
+        // Leaving a payment app that was opened on its own (home screen → GPay → home screen / another app)
+        var standaloneHit: Detection? = null
+        val sp = standalonePay
+        if (sp != null && pkg != sp && !isTransient(pkg, cls)) {
+            standalonePay = null
+            if (t - standaloneStart >= STANDALONE_MIN_MS) {
+                standaloneHit = Detection("", sp, standaloneStart, "stayed ${(t - standaloneStart) / 1000}s in a payment app opened on its own", standalone = true)
+            }
+        }
+        if (isIgnored(pkg, cls)) return standaloneHit
         val s = session
 
         // drop stale sessions
@@ -61,7 +80,10 @@ class PayDetector(
                 cur.returnedAt = null // went back into the payment app (retry)
             }
             session?.let { if (STATUS_SCREEN.containsMatchIn(cls)) it.sawStatus = true }
-            return null
+            if (session == null) {
+                if (standalonePay != pkg) { standalonePay = pkg; standaloneStart = t }
+            } else standalonePay = null
+            return standaloneHit
         }
 
         // a normal app
@@ -82,13 +104,15 @@ class PayDetector(
         lastApp = pkg
         lastCls = cls
         lastAppAt = t
-        return hit
+        return hit ?: standaloneHit
     }
 
     companion object {
         const val MERCHANT_RECENT_MS = 10 * 60_000L
         const val SESSION_MAX_MS = 10 * 60_000L
         const val AFTER_RETURN_MS = 90_000L
+        /** Shorter stays in a payment app opened on its own are treated as just looking (balance, history). */
+        const val STANDALONE_MIN_MS = 12_000L
 
         val DEFAULT_PAYMENT_APPS = setOf(
             "com.google.android.apps.nbu.paisa.user", // Google Pay

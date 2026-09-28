@@ -93,11 +93,24 @@ class PayDetectorTest {
         assertEquals(0, r.size)
     }
 
-    @Test fun openingGPayFromHomeScreen_noPopup() {
+    @Test fun qrScanInGPayOpenedFromHome_standaloneCheck() {
         val r = replay("""
 2026-09-27 19:00:00.000 | WIN | com.sec.android.app.launcher | com.sec.android.app.launcher.Launcher
 2026-09-27 19:00:05.000 | WIN | com.google.android.apps.nbu.paisa.user | com.google.nbu.paisa.flutter.gpay.app.MainActivity
+2026-09-27 19:00:12.000 | WIN | com.samsung.android.biometrics.app.setting | android.widget.FrameLayout
+2026-09-27 19:00:14.000 | WIN | com.google.android.apps.nbu.paisa.user | android.widget.FrameLayout
 2026-09-27 19:00:30.000 | WIN | com.sec.android.app.launcher | com.sec.android.app.launcher.Launcher
+""")
+        assertEquals(1, r.size)
+        assertEquals(true, r[0].standalone)
+        assertEquals("com.google.android.apps.nbu.paisa.user", r[0].payPkg)
+    }
+
+    @Test fun quickLookInGPay_noCheck() {
+        val r = replay("""
+2026-09-27 19:10:00.000 | WIN | com.sec.android.app.launcher | com.sec.android.app.launcher.Launcher
+2026-09-27 19:10:05.000 | WIN | com.google.android.apps.nbu.paisa.user | com.google.nbu.paisa.flutter.gpay.app.MainActivity
+2026-09-27 19:10:11.000 | WIN | com.sec.android.app.launcher | com.sec.android.app.launcher.Launcher
 """)
         assertNull(r.firstOrNull())
     }

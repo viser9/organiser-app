@@ -125,3 +125,23 @@ class SplitTest {
         assertNull(out.myShare); assertEquals(90000L, out.effective); assertEquals("", out.splitWith)
     }
 }
+
+class NotificationParseTest {
+    private fun p(body: String) = SmsParser.parse("APP-Google Pay", body)
+
+    @Test fun gpayPaid() {
+        val r = p("Payment successful. ₹349 paid to Swiggy")!!
+        assertEquals(TxnKind.EXPENSE, r.kind); assertEquals(34900L, r.amount); assertEquals("Swiggy", r.merchant)
+    }
+
+    @Test fun gpayPaidYou() {
+        val r = p("Ramesh Kumar paid you ₹200")!!
+        assertEquals(TxnKind.INCOME, r.kind); assertEquals(20000L, r.amount); assertEquals("Ramesh Kumar", r.merchant)
+    }
+
+    @Test fun ignoresPendingRewardsAndRequests() {
+        assertNull(p("Payment of ₹500 to Shop is pending"))
+        assertNull(p("You won a scratch card worth ₹25"))
+        assertNull(p("Ravi is requesting ₹300"))
+    }
+}

@@ -175,7 +175,7 @@ private fun PaymentCard(
                 )
                 Text(
                     if (t.source == "popup") "${t.note.ifBlank { "In-app payment" }} · spotted in the app · ${dateShort(t.occurredAt)} ${timeHm(t.occurredAt)}"
-                    else "${t.mode} · ${t.bank} SMS · ${dateShort(t.occurredAt)} ${timeHm(t.occurredAt)}",
+                    else "${t.mode} · ${t.bank} ${if (t.source == "notif") "notification" else "SMS"} · ${dateShort(t.occurredAt)} ${timeHm(t.occurredAt)}",
                     style = T.sans(12, 400, color = C.Muted),
                 )
             }
@@ -195,7 +195,7 @@ private fun PaymentCard(
                 } else BigAmount(t.amount, 36)
             }
             if (!needsAmount) Text(
-                "From bank SMS" + if (t.accountLast4.isNotEmpty()) "\na/c ••${t.accountLast4}" else "",
+                (if (t.source == "notif") "From ${t.bank}" else "From bank SMS") + if (t.accountLast4.isNotEmpty()) "\na/c ••${t.accountLast4}" else "",
                 style = T.sans(12, 500, color = C.Good).copy(lineHeight = 17.sp),
                 textAlign = TextAlign.End,
             )

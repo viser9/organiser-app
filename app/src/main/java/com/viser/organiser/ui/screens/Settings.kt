@@ -165,6 +165,14 @@ fun SettingsScreen(nav: Nav) {
                     else { com.viser.organiser.watch.PayWatch.setAsk(ctx, !askOn); tick++ }
                 }
                 Divider()
+                val nlOn = remember(tick) { com.viser.organiser.sms.PayNotificationListener.enabled(ctx) }
+                PermRow(
+                    Ic.Bell, "Read payment notifications",
+                    if (nlOn) "GPay, PhonePe, Paytm, slice, CRED and bank apps — catches payments with no SMS"
+                    else "For payments with no bank SMS. If it's greyed out, allow restricted settings in App info first.",
+                    ok = nlOn,
+                ) { open(ctx, Intent(Settings.ACTION_NOTIFICATION_LISTENER_SETTINGS)) }
+                Divider()
                 ActionRow(Ic.Sliders, "Learning mode", if (com.viser.organiser.watch.Learning.isOn(ctx)) "On — recording app and screen changes" else "Record which screens appear while you pay, to tune the \"Did you just pay…?\" popup") {
                     nav.push(com.viser.organiser.Screen.Learning)
                 }

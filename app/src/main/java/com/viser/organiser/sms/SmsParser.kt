@@ -52,14 +52,16 @@ object SmsParser {
         Regex("""\bfrom\s+$NAME$END""", IC) to 'i',
         Regex("""\bby\s+(?!rs|inr|₹|\d)$NAME$END""", IC) to 'i',
         Regex("""\btransfer from\s+$NAME$END""", IC) to 'i',
+        Regex("""^$NAME\s+(?:paid|sent)\s+you\b""", IC) to 'i',
         Regex("""\b(?:neft|imps|rtgs)\s*(?:cr)?[\s\-]*$NAME(?:\.|$|\s+avl)""", IC) to 'i',
     )
 
     private val ignoreRx = Regex(
-        """\botp\b|one[\s-]time\s+password|verification code|\bdo not share\b|will be debited|is due|due on|due date|min(?:imum)?\s+amount\s+due|total\s+amount\s+due|statement|requested\s+money|collect\s+request|has requested|\bfailed\b|\bdeclined\b|unsuccessful|could not be|pre-?approved|\boffer\b|cashback of up to|\bloan\b.*\beligible|\bapply now\b|reward points|mandate|autopay.*(?:set up|registered|created)|e-?mandate""",
+        """\botp\b|one[\s-]time\s+password|verification code|\bdo not share\b|will be debited|is due|due on|due date|min(?:imum)?\s+amount\s+due|total\s+amount\s+due|statement|requested\s+money|collect\s+request|has requested|\bfailed\b|\bdeclined\b|unsuccessful|could not be|pre-?approved|\boffer\b|cashback of up to|\bloan\b.*\beligible|\bapply now\b|reward points|mandate|autopay.*(?:set up|registered|created)|e-?mandate|\bpending\b|\bprocessing\b|in progress|scratch\s*card|\breward\b|you\s+won|\bcoupon\b|\breminder\b|pay\s+now|\brequest(?:ed|ing)?\s+(?:₹|rs|inr)""",
         RegexOption.IGNORE_CASE,
     )
     private val debitRx = Regex("""\b(debited|spent|sent|paid|withdrawn|purchase|transferred|txn of|transaction of|debit)\b""", RegexOption.IGNORE_CASE)
+    private val paidYouRx = Regex("""\b(?:paid|sent)\s+you\b|\bto\s+you\b|\bmoney\s+received\b""", RegexOption.IGNORE_CASE)
     private val creditRx = Regex("""\b(credited|received|deposited|refund(?:ed)?|reversed|credit of)\b""", RegexOption.IGNORE_CASE)
     private val cardBillRx = Regex("""payment\s+(?:of\s+.*?)?(?:has been\s+)?received.*(?:credit\s*card|card\s+(?:ending|no|xx))|(?:credit\s*card|card)\s+(?:bill|payment)\s+(?:of|received)|towards\s+your\s+(?:\w+\s+)?credit\s*card|cc\s*payment|\bbillpay\b""", RegexOption.IGNORE_CASE)
 
@@ -110,6 +112,7 @@ object SmsParser {
         val dIdx = debitRx.find(body)?.range?.first ?: Int.MAX_VALUE
         val cIdx = creditRx.find(body)?.range?.first ?: Int.MAX_VALUE
         var kind = if (dIdx <= cIdx) TxnKind.EXPENSE else TxnKind.INCOME
+        if (paidYouRx.containsMatchIn(body)) kind = TxnKind.INCOME
         // "credited to your card" on a card = refund/reversal (income); card bill payments are transfers.
         if (cardBill) kind = TxnKind.TRANSFER
 

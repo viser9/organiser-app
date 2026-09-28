@@ -121,6 +121,21 @@ object Notifier {
         try { NotificationManagerCompat.from(ctx).notify(n, b.build()) } catch (_: SecurityException) {}
     }
 
+    /** Quiet nudge after a payment app was used on its own and no SMS/notification described a payment. */
+    fun maybePaid(ctx: Context, payApp: String, at: Long) {
+        if (!canPost(ctx)) return
+        val id = ("maybe" + at).hashCode()
+        val b = NotificationCompat.Builder(ctx, CH_MONEY)
+            .setSmallIcon(R.drawable.ic_notif)
+            .setContentTitle("Paid someone with $payApp?")
+            .setContentText("No bank SMS or payment notification came through for it. Tap to add it.")
+            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setAutoCancel(true)
+            .setContentIntent(openApp(ctx, "capture", "expense", id))
+            .addAction(0, "Add expense", openApp(ctx, "capture", "expense", id + 1))
+        try { NotificationManagerCompat.from(ctx).notify(id, b.build()) } catch (_: SecurityException) {}
+    }
+
     fun goalHit(ctx: Context, g: Goal) {
         if (!canPost(ctx)) return
         val b = NotificationCompat.Builder(ctx, CH_GOALS)

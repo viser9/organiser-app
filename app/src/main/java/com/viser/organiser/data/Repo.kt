@@ -106,10 +106,10 @@ class Repo(private val ctx: Context) {
      * Stores a bank SMS as a pending transaction. Returns the new Txn, or null if it was not a
      * transaction, was already imported, or duplicates one we already have (E-5).
      */
-    suspend fun ingestSms(sender: String, body: String, time: Long): Txn? {
+    suspend fun ingestSms(sender: String, body: String, time: Long, source: String = "sms", bankLabel: String? = null): Txn? {
         val hash = SmsParser.hash(sender, body, time)
         if (db.txns().hashCount(hash) > 0) return null
-        val p = SmsParser.parse(sender, body) ?: return null
+        val p = SmsParser.parse(sender, body)?.let { if (bankLabel != null) it.copy(bank = bankLabel) else it } ?: return null
         if (p.kind == TxnKind.TRANSFER) return null // card bill payments etc. are not spend
 
         if (p.upiRef.isNotEmpty() && db.txns().byRef(p.upiRef) != null) return null
@@ -135,7 +135,7 @@ class Repo(private val ctx: Context) {
             category = categoryFor(merchant, p.kind),
             merchant = merchant,
             mode = p.mode,
-            source = "sms",
+            source = source,
             bank = p.bank,
             accountLast4 = p.accountLast4,
             upiRef = p.upiRef,
@@ -153,7 +153,7 @@ class Repo(private val ctx: Context) {
      */
     suspend fun popupTxn(merchant: String, payApp: String, at: Long): Txn {
         val recentSms = db.txns().recentPending(at - 5 * 60_000L)
-            .firstOrNull { it.source == "sms" && it.kind == TxnKind.EXPENSE }
+            .firstOrNull { (it.source == "sms" || it.source == "notif") && it.kind == TxnKind.EXPENSE }
         if (recentSms != null) {
             val better = recentSms.copy(
                 merchant = if (recentSms.merchant.endsWith(" payment") || recentSms.merchant.contains('@')) merchant else recentSms.merchant,

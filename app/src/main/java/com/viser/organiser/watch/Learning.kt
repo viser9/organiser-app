@@ -249,8 +249,25 @@ class PayWatchService : AccessibilityService() {
         if (learning && !(pkg == "com.android.systemui" && cls.isEmpty())) Learning.append(this, "WIN", pkg, cls)
 
         val hit = detector.onWindow(pkg, cls, System.currentTimeMillis()) ?: return
-        if (learning) Learning.append(this, "DETECT", hit.merchantPkg, "${hit.payPkg} · ${hit.reason}")
+        if (learning) Learning.append(this, "DETECT", hit.merchantPkg.ifBlank { "(on its own)" }, "${hit.payPkg} · ${hit.reason}")
         if (!PayWatch.askEnabled(this)) return
+        if (hit.standalone) {
+            // QR scan / send-to-contact inside GPay etc.: wait for an SMS or payment notification;
+            // if nothing arrives, leave a quiet "did you pay?" notification (no pop-over for these).
+            val payLabel = PayWatch.appLabel(this, hit.payPkg)
+            val repo = com.viser.organiser.data.Repo.get(this)
+            scope.launch {
+                kotlinx.coroutines.delay(90_000)
+                val seen = kotlinx.coroutines.withContext(kotlinx.coroutines.Dispatchers.IO) {
+                    repo.db.txns().createdSince(hit.at - 60_000)
+                }
+                if (seen.isEmpty()) com.viser.organiser.reminders.Notifier.maybePaid(this@PayWatchService, payLabel, hit.at)
+                if (Learning.isOn(this@PayWatchService)) {
+                    Learning.append(this@PayWatchService, "CHECK", payLabel, if (seen.isEmpty()) "nothing captured → asked" else "captured by SMS/notification")
+                }
+            }
+            return
+        }
         val merchant = PayWatch.appLabel(this, hit.merchantPkg)
         val payApp = PayWatch.appLabel(this, hit.payPkg)
         val repo = com.viser.organiser.data.Repo.get(this)

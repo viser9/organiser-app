@@ -405,7 +405,7 @@ private fun TxnDialog(t: Txn, onDismiss: () -> Unit, onSave: (Txn) -> Unit, onDe
             Column(Modifier.verticalScroll(rememberScrollState()), verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 LightField(amount, { amount = it }, "Amount", keyboard = KeyboardOptions(keyboardType = KeyboardType.Decimal))
                 LightField(merchant, { merchant = it }, "Merchant / from")
-                Text("${dateLong(t.occurredAt)} · ${timeHm(t.occurredAt)} · ${if (t.source == "sms") "${t.bank} SMS" else t.mode}", style = T.sans(12, 500, color = C.Muted))
+                Text("${dateLong(t.occurredAt)} · ${timeHm(t.occurredAt)} · ${if (t.source == "sms") "${t.bank} SMS" else if (t.source == "notif") "${t.bank} notification" else t.mode}", style = T.sans(12, 500, color = C.Muted))
                 TxnEditor(paise, draft, knownPeople, compactCategories = false) { draft = it }
             }
         },
